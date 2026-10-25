@@ -44,6 +44,384 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------------
+# Hacktoberfest theme — injected CSS
+# Palette from hacktoberfest.com brand kit:
+#   Forest       #3D5F58   Deep forest  #2E4742
+#   Ink          #231F20   Paper        #F2F2EB
+#   Orange       #E53927   Maroon       #671912
+#   Ochre        #F5B726   Sky          #8BB2DE
+# ---------------------------------------------------------------------------
+st.markdown(
+    """
+<style>
+/* ── Google Fonts ── */
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;600;700;800&family=Inter:wght@400;500;600&family=Martian+Mono:wght@400;600&display=swap');
+
+/* ── Root overrides ── */
+html, body, [class*="css"] {
+    font-family: 'Inter', sans-serif;
+}
+
+/* ── Main background ── */
+.stApp {
+    background-color: #2E4742;
+}
+
+/* ── Top navbar strip ── */
+header[data-testid="stHeader"] {
+    background-color: #231F20 !important;
+    border-bottom: 3px solid #E53927;
+}
+
+/* ── Sidebar ── */
+section[data-testid="stSidebar"] {
+    background-color: #231F20 !important;
+    border-right: 2px solid #3D5F58;
+}
+section[data-testid="stSidebar"] * {
+    color: #F2F2EB !important;
+}
+
+/* ── Main content area ── */
+.block-container {
+    padding-top: 2rem;
+    padding-bottom: 3rem;
+    max-width: 1200px;
+}
+
+/* ── App title — Barlow Semi Condensed, bold ── */
+h1 {
+    font-family: 'Barlow Semi Condensed', sans-serif !important;
+    font-weight: 800 !important;
+    font-size: 2.6rem !important;
+    color: #F2F2EB !important;
+    letter-spacing: -0.5px;
+    text-transform: uppercase;
+}
+
+/* ── H2 / H3 — section headings ── */
+h2 {
+    font-family: 'Barlow Semi Condensed', sans-serif !important;
+    font-weight: 700 !important;
+    color: #F2F2EB !important;
+    font-size: 1.8rem !important;
+}
+h3 {
+    font-family: 'Barlow Semi Condensed', sans-serif !important;
+    font-weight: 600 !important;
+    color: #F5B726 !important;
+    font-size: 1.3rem !important;
+}
+h4 {
+    font-family: 'Barlow Semi Condensed', sans-serif !important;
+    font-weight: 600 !important;
+    color: #8BB2DE !important;
+}
+
+/* ── Orange accent on subheader ── */
+h2 em, h3 em {
+    color: #E53927;
+    font-style: normal;
+}
+
+/* ── Body text ── */
+p, li, label, .stMarkdown {
+    color: #F2F2EB !important;
+    font-size: 0.97rem;
+    line-height: 1.6;
+}
+
+/* ── Caption / small text ── */
+small, .stCaption, [data-testid="stCaptionContainer"] {
+    color: #8BB2DE !important;
+    font-size: 0.82rem !important;
+}
+
+/* ── Divider ── */
+hr {
+    border: none;
+    border-top: 2px dashed #3D5F58 !important;
+    margin: 1.5rem 0;
+}
+
+/* ── PRIMARY button (Generate Procedure) ── */
+.stButton > button[kind="primary"],
+button[data-testid="baseButton-primary"] {
+    background-color: #E53927 !important;
+    color: #F2F2EB !important;
+    border: 2px solid #671912 !important;
+    font-family: 'Barlow Semi Condensed', sans-serif !important;
+    font-weight: 700 !important;
+    font-size: 1.05rem !important;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    border-radius: 4px !important;
+    padding: 0.5rem 1.5rem !important;
+    transition: background 0.15s ease;
+}
+.stButton > button[kind="primary"]:hover,
+button[data-testid="baseButton-primary"]:hover {
+    background-color: #671912 !important;
+}
+
+/* ── SECONDARY button ── */
+.stButton > button[kind="secondary"],
+button[data-testid="baseButton-secondary"] {
+    background-color: transparent !important;
+    color: #F2F2EB !important;
+    border: 2px solid #F2F2EB !important;
+    font-family: 'Barlow Semi Condensed', sans-serif !important;
+    font-weight: 600 !important;
+    text-transform: uppercase;
+    border-radius: 4px !important;
+    transition: border-color 0.15s ease;
+}
+.stButton > button[kind="secondary"]:hover {
+    border-color: #E53927 !important;
+    color: #E53927 !important;
+}
+
+/* ── Download button ── */
+.stDownloadButton > button {
+    background-color: #3D5F58 !important;
+    color: #F2F2EB !important;
+    border: 2px solid #F5B726 !important;
+    font-family: 'Barlow Semi Condensed', sans-serif !important;
+    font-weight: 700 !important;
+    text-transform: uppercase;
+    border-radius: 4px !important;
+}
+.stDownloadButton > button:hover {
+    background-color: #F5B726 !important;
+    color: #231F20 !important;
+}
+
+/* ── Expander — card style ── */
+details[data-testid="stExpander"],
+.streamlit-expanderHeader {
+    background-color: #243B36 !important;
+    border: 1.5px solid #3D5F58 !important;
+    border-radius: 6px !important;
+    margin-bottom: 0.6rem;
+}
+.streamlit-expanderHeader p {
+    font-family: 'Barlow Semi Condensed', sans-serif !important;
+    font-weight: 600 !important;
+    font-size: 1.0rem !important;
+    color: #F2F2EB !important;
+}
+details[data-testid="stExpander"] > div {
+    background-color: #243B36 !important;
+    border-top: 1px dashed #3D5F58 !important;
+    padding: 0.8rem 1rem !important;
+}
+
+/* ── Tabs ── */
+button[data-baseweb="tab"] {
+    font-family: 'Barlow Semi Condensed', sans-serif !important;
+    font-weight: 600 !important;
+    font-size: 0.97rem !important;
+    color: #8BB2DE !important;
+    border-bottom: 2px solid transparent !important;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+button[data-baseweb="tab"][aria-selected="true"] {
+    color: #E53927 !important;
+    border-bottom: 2px solid #E53927 !important;
+}
+div[data-baseweb="tab-list"] {
+    background-color: #243B36 !important;
+    border-bottom: 1px solid #3D5F58 !important;
+    gap: 0;
+}
+div[data-baseweb="tab-panel"] {
+    background-color: #243B36 !important;
+    border: 1px solid #3D5F58 !important;
+    border-top: none !important;
+    padding: 1rem !important;
+}
+
+/* ── File uploader ── */
+[data-testid="stFileUploader"] {
+    background-color: #243B36 !important;
+    border: 2px dashed #3D5F58 !important;
+    border-radius: 6px !important;
+    padding: 0.5rem;
+}
+[data-testid="stFileUploader"]:hover {
+    border-color: #E53927 !important;
+}
+
+/* ── Status boxes (success / info / warning / error) ── */
+[data-testid="stAlert"][data-baseweb="notification"][kind="success"],
+div[data-testid="stSuccessMessage"] {
+    background-color: #1e3d30 !important;
+    border-left: 4px solid #3D5F58 !important;
+    color: #F2F2EB !important;
+}
+[data-testid="stAlert"][kind="warning"],
+div[data-testid="stWarningMessage"] {
+    background-color: #3d3410 !important;
+    border-left: 4px solid #F5B726 !important;
+    color: #F2F2EB !important;
+}
+[data-testid="stAlert"][kind="error"],
+div[data-testid="stErrorMessage"] {
+    background-color: #3d1010 !important;
+    border-left: 4px solid #E53927 !important;
+    color: #F2F2EB !important;
+}
+[data-testid="stAlert"][kind="info"],
+div[data-testid="stInfoMessage"] {
+    background-color: #1a2f3f !important;
+    border-left: 4px solid #8BB2DE !important;
+    color: #F2F2EB !important;
+}
+
+/* ── st.status (processing steps) ── */
+[data-testid="stStatusWidget"] {
+    background-color: #243B36 !important;
+    border: 1px solid #3D5F58 !important;
+    border-radius: 6px !important;
+    color: #F2F2EB !important;
+}
+
+/* ── Code blocks ── */
+code, pre {
+    font-family: 'Martian Mono', monospace !important;
+    background-color: #1a2d29 !important;
+    color: #F5B726 !important;
+    border-radius: 3px;
+    font-size: 0.82rem !important;
+}
+
+/* ── Checkbox ── */
+label[data-testid="stWidgetLabel"] span {
+    color: #F2F2EB !important;
+}
+input[type="checkbox"] {
+    accent-color: #E53927;
+}
+
+/* ── Selectbox / radio ── */
+[data-testid="stSelectbox"] select,
+[data-testid="stRadio"] {
+    background-color: #243B36 !important;
+    color: #F2F2EB !important;
+    border: 1px solid #3D5F58 !important;
+}
+
+/* ── Metric boxes ── */
+[data-testid="stMetricValue"] {
+    color: #E53927 !important;
+    font-family: 'Barlow Semi Condensed', sans-serif !important;
+    font-weight: 800 !important;
+}
+
+/* ── Thumbnail image captions ── */
+[data-testid="stImageCaption"] {
+    color: #8BB2DE !important;
+    font-size: 0.75rem !important;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #2E4742; }
+::-webkit-scrollbar-thumb { background: #3D5F58; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #E53927; }
+
+/* ── Hero banner (top of page) ── */
+.hf-hero {
+    background: linear-gradient(135deg, #231F20 0%, #2E4742 60%);
+    border: 2px solid #3D5F58;
+    border-radius: 8px;
+    padding: 2rem 2.5rem 1.5rem;
+    margin-bottom: 1.5rem;
+    position: relative;
+    overflow: hidden;
+}
+.hf-hero::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0;
+    width: 6px; height: 100%;
+    background: #E53927;
+}
+.hf-hero h1 {
+    margin: 0 0 0.3rem 0;
+    font-size: 2.4rem !important;
+    color: #F2F2EB !important;
+}
+.hf-hero h1 span { color: #E53927; }
+.hf-hero p {
+    margin: 0;
+    color: #8BB2DE !important;
+    font-size: 0.95rem;
+}
+
+/* ── Section card ── */
+.hf-card {
+    background-color: #243B36;
+    border: 1.5px solid #3D5F58;
+    border-radius: 6px;
+    padding: 1.2rem 1.4rem;
+    margin-bottom: 1rem;
+}
+
+/* ── Tag / badge pill ── */
+.hf-tag {
+    display: inline-block;
+    background-color: #3D5F58;
+    color: #F5B726;
+    font-family: 'Martian Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 3px;
+    border: 1px solid #F5B726;
+    margin-right: 4px;
+    letter-spacing: 0.3px;
+}
+.hf-tag-red  { background-color: #671912; color: #F2F2EB; border-color: #E53927; }
+.hf-tag-blue { background-color: #1a2f3f; color: #8BB2DE; border-color: #8BB2DE; }
+
+/* ── OSS library row ── */
+.oss-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.8rem;
+    padding: 0.6rem 0;
+    border-bottom: 1px dashed #3D5F58;
+}
+.oss-row:last-child { border-bottom: none; }
+.oss-name {
+    font-family: 'Barlow Semi Condensed', sans-serif;
+    font-weight: 700;
+    color: #F5B726;
+    font-size: 1rem;
+}
+.oss-desc { color: #F2F2EB; font-size: 0.88rem; }
+.oss-lic {
+    font-family: 'Martian Mono', monospace;
+    font-size: 0.72rem;
+    color: #8BB2DE;
+}
+
+/* ── Step card ── */
+.step-number {
+    font-family: 'Barlow Semi Condensed', sans-serif;
+    font-weight: 800;
+    font-size: 1.4rem;
+    color: #E53927;
+    min-width: 2rem;
+}
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
+# ---------------------------------------------------------------------------
 # Imports
 # ---------------------------------------------------------------------------
 from skillcapture.transcribe import (
@@ -144,58 +522,89 @@ for _k, _v in _DEFAULTS.items():
         st.session_state[_k] = _v
 
 # ---------------------------------------------------------------------------
-# Header
+# Hero banner
 # ---------------------------------------------------------------------------
-st.title("🎓 SkillCapture")
-st.caption(
-    "Turn a spoken demonstration + photos + an optional manual into a "
-    "structured, evidence-linked procedure."
+st.markdown(
+    """
+<div class="hf-hero">
+  <h1>SKILL<span>CAPTURE</span></h1>
+  <p>Turn a spoken demonstration + photos + an optional manual into a
+  structured, evidence-linked procedure — powered by Gemma&nbsp;4.</p>
+</div>
+""",
+    unsafe_allow_html=True,
 )
-st.divider()
 
 # ---------------------------------------------------------------------------
 # Sidebar
 # ---------------------------------------------------------------------------
 with st.sidebar:
-    st.header("ℹ️ About")
     st.markdown(
-        f"""
-**Model:** `{GEMMA_MODEL}`  
-Gemma 4 via the Gemini API (Google AI Studio)
-
-**Audio:** faster-whisper (base, CPU int8)  
-**PDF:** Docling → pypdf fallback
-
----
-**API key status:**
-"""
+        """
+<div style="padding:0.5rem 0 1rem;">
+  <div style="font-family:'Barlow Semi Condensed',sans-serif;font-weight:800;
+              font-size:1.3rem;color:#F2F2EB;text-transform:uppercase;
+              letter-spacing:1px;">
+    SKILL<span style="color:#E53927;">CAPTURE</span>
+  </div>
+  <div style="font-size:0.75rem;color:#8BB2DE;margin-top:2px;">
+    Hacktoberfest × MOSS Hack Day Udupi 2026
+  </div>
+</div>
+""",
+        unsafe_allow_html=True,
     )
+    st.divider()
+
+    st.markdown("**🤖 Model**")
+    st.code(GEMMA_MODEL, language=None)
+    st.markdown(
+        "<span style='font-size:0.8rem;color:#8BB2DE;'>"
+        "Gemma 4 via Gemini API · Google AI Studio</span>",
+        unsafe_allow_html=True,
+    )
+    st.markdown("**🎙 Audio** · faster-whisper base int8")
+    st.markdown("**📄 PDF** · Docling → pypdf fallback")
+    st.divider()
+
     if os.getenv("GEMINI_API_KEY"):
-        st.success("GEMINI_API_KEY found ✓")
+        st.markdown(
+            "<span class='hf-tag'>API KEY ✓</span>",
+            unsafe_allow_html=True,
+        )
     else:
         st.error("GEMINI_API_KEY not set — add it to .env")
 
-    st.markdown("---")
-    st.markdown(
-        "Built for **Hacktoberfest x MOSS Hack Day Udupi 2026**  \n"
-        "Open-source under the MIT License."
-    )
-
-    # Timings diagnostic — shown after a successful run
+    # Timings diagnostic
     if st.session_state["processing_done"] and st.session_state["timings"]:
-        st.markdown("---")
+        st.divider()
         st.markdown("**⏱ Stage timings**")
         for stage, secs in st.session_state["timings"].items():
-            st.markdown(f"- {stage}: `{secs:.2f}s`")
+            st.markdown(
+                f"<div style='display:flex;justify-content:space-between;"
+                f"font-size:0.82rem;padding:2px 0;'>"
+                f"<span style='color:#8BB2DE;'>{stage}</span>"
+                f"<span style='font-family:Martian Mono,monospace;color:#F5B726;'>"
+                f"{secs:.2f}s</span></div>",
+                unsafe_allow_html=True,
+            )
 
     # Reset action
     if st.session_state["processing_done"]:
-        st.markdown("---")
+        st.divider()
         if st.button("🔄 Start new procedure", key="btn_reset",
                      use_container_width=True):
             for _k, _v in _DEFAULTS.items():
                 st.session_state[_k] = _v
             st.rerun()
+
+    st.divider()
+    st.markdown(
+        "<div style='font-size:0.75rem;color:#3D5F58;'>MIT License · "
+        "<a href='https://github.com/udaybaheti22/hacktober-Uday' "
+        "style='color:#3D5F58;'>GitHub</a></div>",
+        unsafe_allow_html=True,
+    )
 
 # ---------------------------------------------------------------------------
 # Input section
@@ -203,7 +612,10 @@ Gemma 4 via the Gemini API (Google AI Studio)
 col_left, col_right = st.columns([1, 1], gap="large")
 
 with col_left:
-    st.subheader("1. Upload inputs")
+    st.markdown(
+        "<h3 style='margin-bottom:0.8rem;'>01 &nbsp;Upload inputs</h3>",
+        unsafe_allow_html=True,
+    )
 
     audio_file = st.file_uploader(
         "🎙️ Audio recording (required)",
@@ -228,12 +640,24 @@ with col_left:
     )
 
 with col_right:
-    st.subheader("2. Uploaded files")
+    st.markdown(
+        "<h3 style='margin-bottom:0.8rem;'>02 &nbsp;Uploaded files</h3>",
+        unsafe_allow_html=True,
+    )
 
     if audio_file:
-        st.success(f"🎙️ {audio_file.name} ({_fmt_size(audio_file.size)})")
+        st.markdown(
+            f"<div class='hf-card' style='border-color:#3D5F58;'>"
+            f"🎙️ <strong>{audio_file.name}</strong> &nbsp;"
+            f"<span class='hf-tag'>{_fmt_size(audio_file.size)}</span></div>",
+            unsafe_allow_html=True,
+        )
     else:
-        st.info("No audio uploaded yet.")
+        st.markdown(
+            "<div style='color:#8BB2DE;font-size:0.88rem;padding:0.4rem 0;'>"
+            "No audio uploaded yet.</div>",
+            unsafe_allow_html=True,
+        )
 
     if image_files:
         valid_images = [f for f in image_files if f is not None]
@@ -243,7 +667,11 @@ with col_right:
             st.warning(f"⚠️ {len(valid_images)} images — maximum 8 will be sent.")
             valid_images = valid_images[:8]
         else:
-            st.success(f"📷 {len(valid_images)} image(s) ready.")
+            st.markdown(
+                f"<div class='hf-card' style='border-color:#3D5F58;'>"
+                f"📷 <strong>{len(valid_images)} image(s) ready</strong></div>",
+                unsafe_allow_html=True,
+            )
 
         thumb_cols = st.columns(min(4, len(valid_images)))
         for i, img in enumerate(valid_images[:4]):
@@ -251,12 +679,25 @@ with col_right:
                 st.image(img, caption=img.name, use_container_width=True)
     else:
         valid_images = []
-        st.info("No images uploaded yet.")
+        st.markdown(
+            "<div style='color:#8BB2DE;font-size:0.88rem;padding:0.4rem 0;'>"
+            "No images uploaded yet.</div>",
+            unsafe_allow_html=True,
+        )
 
     if pdf_file:
-        st.success(f"📄 {pdf_file.name} ({_fmt_size(pdf_file.size)})")
+        st.markdown(
+            f"<div class='hf-card' style='border-color:#3D5F58;'>"
+            f"📄 <strong>{pdf_file.name}</strong> &nbsp;"
+            f"<span class='hf-tag'>{_fmt_size(pdf_file.size)}</span></div>",
+            unsafe_allow_html=True,
+        )
     else:
-        st.info("No PDF uploaded (optional).")
+        st.markdown(
+            "<div style='color:#8BB2DE;font-size:0.88rem;padding:0.4rem 0;'>"
+            "No PDF uploaded <em>(optional)</em>.</div>",
+            unsafe_allow_html=True,
+        )
 
 st.divider()
 
@@ -270,7 +711,13 @@ can_generate = (
 )
 
 if not st.session_state["processing_done"] and not can_generate:
-    st.info("Upload at least an audio file and one image to generate a procedure.")
+    st.markdown(
+        "<div style='text-align:center;color:#8BB2DE;font-size:0.9rem;"
+        "padding:0.6rem;border:1.5px dashed #3D5F58;border-radius:6px;"
+        "margin-bottom:0.5rem;'>"
+        "Upload at least an audio file and one image to generate a procedure.</div>",
+        unsafe_allow_html=True,
+    )
 
 generate_btn = st.button(
     "⚙️ Generate Procedure",
@@ -432,9 +879,13 @@ if st.session_state["processing_done"] and st.session_state["procedure"] is not 
 
     procedure = st.session_state["procedure"]
 
-    st.divider()
-    st.subheader(f"📋 {procedure.title}")
-    st.markdown(procedure.overview)
+    st.markdown(
+        f"<div class='hf-hero' style='margin-top:1rem;'>"
+        f"<h1 style='font-size:2rem!important;'>"
+        f"<span style='color:#E53927;'>📋</span> {procedure.title}</h1>"
+        f"<p>{procedure.overview}</p></div>",
+        unsafe_allow_html=True,
+    )
 
     # Show any post-generation validation warnings
     if st.session_state.get("validation_warnings"):
@@ -452,7 +903,10 @@ if st.session_state["processing_done"] and st.session_state["procedure"] is not 
             for w in procedure.general_warnings:
                 st.warning(w)
 
-    st.markdown("### Steps")
+    st.markdown(
+        "<h2 style='margin-top:1.5rem;'>Procedure <span style='color:#E53927;'>Steps</span></h2>",
+        unsafe_allow_html=True,
+    )
     for step in procedure.steps:
         inferred_note  = " *(inferred — no direct source)*" if step.is_inferred else ""
         review_note    = " 🔶 *requires review*" if step.requires_review else ""
@@ -516,7 +970,10 @@ if st.session_state["processing_done"] and st.session_state["procedure"] is not 
                 st.markdown(f"- {item}")
 
     if procedure.completion_checklist:
-        st.markdown("### ✅ Completion Checklist")
+        st.markdown(
+            "<h3 style='margin-top:1.5rem;'>✅ Completion Checklist</h3>",
+            unsafe_allow_html=True,
+        )
         for idx, item in enumerate(procedure.completion_checklist):
             st.checkbox(item, value=False, key=f"checklist_{idx}")
 
@@ -534,19 +991,25 @@ if st.session_state["processing_done"] and st.session_state["procedure"] is not 
         key="btn_download",
     )
 
-    st.caption(
-        "Use **🔄 Start new procedure** in the sidebar to upload different files."
+    st.markdown(
+        "<div style='text-align:center;color:#8BB2DE;font-size:0.82rem;"
+        "padding:0.4rem;border-top:1px dashed #3D5F58;margin-top:0.5rem;'>"
+        "Use <strong>🔄 Start new procedure</strong> in the sidebar to upload different files.</div>",
+        unsafe_allow_html=True,
     )
 
     # -------------------------------------------------------------------------
     # Mermaid diagram views
     # Built from the already-generated procedure — no API calls.
     # -------------------------------------------------------------------------
-    st.divider()
-    st.subheader("📊 Diagram Views")
-    st.caption(
-        "Visualise the procedure as a Mermaid diagram. "
-        "Changing diagram type does not re-run Whisper, Docling, or Gemma 4."
+    st.markdown(
+        "<h2 style='margin-top:2rem;'>📊 Diagram <span style='color:#E53927;'>Views</span></h2>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "<p style='color:#8BB2DE;margin-top:-0.5rem;margin-bottom:1rem;'>"
+        "Changing diagram type does not re-run Whisper, Docling, or Gemma 4.</p>",
+        unsafe_allow_html=True,
     )
 
     dtab_flow, dtab_seq = st.tabs(["Flowchart", "Sequence Diagram"])
@@ -597,11 +1060,15 @@ if st.session_state["processing_done"] and st.session_state["procedure"] is not 
     # Open-source libraries used in this procedure
     # Checkbox list — purely informational, no reprocessing triggered.
     # -------------------------------------------------------------------------
-    st.divider()
-    st.subheader("🔧 Open-Source Libraries")
-    st.caption(
-        "These are the open-source tools that powered this procedure. "
-        "Click any checkbox to mark it as explored."
+    st.markdown(
+        "<h2 style='margin-top:2rem;'>🔧 Open-Source <span style='color:#E53927;'>Libraries</span></h2>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "<p style='color:#8BB2DE;margin-top:-0.5rem;margin-bottom:1rem;'>"
+        "The open-source tools that powered this procedure. "
+        "Click any checkbox to mark it as explored.</p>",
+        unsafe_allow_html=True,
     )
 
     # Each entry: (label, description, url, license)
@@ -656,11 +1123,20 @@ if st.session_state["processing_done"] and st.session_state["procedure"] is not 
         ),
     ]
 
+    st.markdown("<div class='hf-card'>", unsafe_allow_html=True)
     for i, (name, description, url, lic) in enumerate(_OSS_LIBS):
         col_cb, col_info = st.columns([1, 11])
         with col_cb:
             st.checkbox("", key=f"oss_lib_{i}", label_visibility="collapsed")
         with col_info:
             st.markdown(
-                f"**[{name}]({url})** &nbsp;`{lic}`  \n{description}"
+                f"<div class='oss-row'>"
+                f"<div>"
+                f"<a href='{url}' target='_blank' class='oss-name' "
+                f"style='text-decoration:none;color:#F5B726;'>{name}</a>"
+                f"&nbsp;&nbsp;<span class='oss-lic hf-tag-blue'>{lic}</span><br>"
+                f"<span class='oss-desc'>{description}</span>"
+                f"</div></div>",
+                unsafe_allow_html=True,
             )
+    st.markdown("</div>", unsafe_allow_html=True)

@@ -23,8 +23,8 @@ uploads/
 temp/
 *.tmp
 
-# Streamlit cache
-.streamlit/
+# Streamlit cache (but keep config.toml)
+.streamlit/secrets.toml
 
 # Model cache (faster-whisper downloads models here)
 models/

@@ -7,7 +7,9 @@ Run with:  python -m streamlit run app.py
 
 from __future__ import annotations
 
+import hashlib
 import os
+import time
 
 import streamlit as st
 from dotenv import load_dotenv
@@ -27,6 +29,11 @@ def _fmt_size(size_bytes: int) -> str:
         return f"{size_bytes / 1024**2:.1f} MB"
 
 
+def _sha256(data: bytes) -> str:
+    """Content-based cache key: SHA-256 hex of raw bytes."""
+    return hashlib.sha256(data).hexdigest()
+
+
 # ---------------------------------------------------------------------------
 # Page config — must be the first Streamlit call
 # ---------------------------------------------------------------------------
@@ -39,22 +46,91 @@ st.set_page_config(
 # ---------------------------------------------------------------------------
 # Imports
 # ---------------------------------------------------------------------------
-from skillcapture.transcribe import transcribe_audio, segments_to_annotated_text
-from skillcapture.extract_pdf import extract_pdf
+from skillcapture.transcribe import (
+    get_whisper_model,
+    transcribe_audio_with_model,
+    segments_to_annotated_text,
+)
+from skillcapture.extract_pdf import get_docling_converter, extract_pdf
 from skillcapture.synthesize import synthesize_procedure, GEMMA_MODEL
 from skillcapture.export import procedure_to_markdown
 
+
+# ---------------------------------------------------------------------------
+# Cached resource initialisation
+# These run once per server process and are reused across all reruns.
+# ---------------------------------------------------------------------------
+
+@st.cache_resource(show_spinner=False)
+def _load_whisper_model():
+    """Load faster-whisper base model once. Cached for the process lifetime."""
+    try:
+        model, init_seconds = get_whisper_model()
+        return model, init_seconds, None
+    except RuntimeError as exc:
+        return None, 0.0, str(exc)
+
+
+@st.cache_resource(show_spinner=False)
+def _load_docling_converter():
+    """Build Docling DocumentConverter once. Cached for the process lifetime."""
+    try:
+        converter, init_seconds = get_docling_converter()
+        return converter, init_seconds, None
+    except RuntimeError as exc:
+        return None, 0.0, str(exc)
+
+
+# ---------------------------------------------------------------------------
+# Cached processing functions
+# Cache keys are content-based (SHA-256) so replacing a file invalidates
+# the cache automatically. No sensitive data is used as a cache key.
+# ---------------------------------------------------------------------------
+
+@st.cache_data(show_spinner=False)
+def _cached_transcribe(audio_sha256: str, audio_bytes: bytes) -> dict:
+    """
+    Transcribe audio. Cached by content hash.
+    Re-runs only when the audio file content actually changes.
+    audio_sha256 is included explicitly so Streamlit uses it as the cache key
+    even though audio_bytes would also differ — this avoids hashing large
+    byte arrays twice.
+    """
+    whisper_model, _init_secs, model_error = _load_whisper_model()
+    if model_error:
+        return {
+            "transcript": "", "segments": [],
+            "decode_seconds": 0.0, "transcribe_seconds": 0.0,
+            "error": f"Whisper model failed to load: {model_error}",
+        }
+    return transcribe_audio_with_model(whisper_model, audio_bytes)
+
+
+@st.cache_data(show_spinner=False)
+def _cached_extract_pdf(pdf_sha256: str, pdf_bytes: bytes,
+                        filename: str) -> dict:
+    """
+    Extract PDF. Cached by content hash.
+    Re-runs only when the PDF file content actually changes.
+    """
+    converter, _init_secs, conv_error = _load_docling_converter()
+    # conv_error is non-fatal: extract_pdf falls back to pypdf automatically
+    return extract_pdf(pdf_bytes, filename,
+                       converter=converter if not conv_error else None)
+
+
 # ---------------------------------------------------------------------------
 # Session-state initialisation
-# Guard: only set keys that don't exist yet so reruns never clobber live data.
+# Guard: only set keys that don't exist yet — safe to call on every rerun.
 # ---------------------------------------------------------------------------
 _DEFAULTS: dict = {
-    "procedure": None,          # validated Procedure object
-    "transcript": None,         # dict from transcribe_audio
-    "pdf_result": None,         # dict from extract_pdf
-    "image_data": None,         # list[(filename, bytes)]
-    "processing_done": False,   # True once a successful run completed
-    "error_msg": None,          # last fatal error string
+    "procedure":       None,   # validated Procedure object
+    "transcript":      None,   # dict from transcribe_audio_with_model
+    "pdf_result":      None,   # dict from extract_pdf
+    "image_data":      None,   # list[(filename, bytes)]
+    "processing_done": False,  # True once a full successful run completed
+    "error_msg":       None,   # last fatal error string
+    "timings":         {},     # stage → elapsed seconds
 }
 for _k, _v in _DEFAULTS.items():
     if _k not in st.session_state:
@@ -98,16 +174,24 @@ Gemma 4 via the Gemini API (Google AI Studio)
         "Open-source under the MIT License."
     )
 
-    # --- Reset action ---
+    # Timings diagnostic — shown after a successful run
+    if st.session_state["processing_done"] and st.session_state["timings"]:
+        st.markdown("---")
+        st.markdown("**⏱ Stage timings**")
+        for stage, secs in st.session_state["timings"].items():
+            st.markdown(f"- {stage}: `{secs:.2f}s`")
+
+    # Reset action
     if st.session_state["processing_done"]:
         st.markdown("---")
-        if st.button("🔄 Start new procedure", key="btn_reset", use_container_width=True):
+        if st.button("🔄 Start new procedure", key="btn_reset",
+                     use_container_width=True):
             for _k, _v in _DEFAULTS.items():
                 st.session_state[_k] = _v
             st.rerun()
 
 # ---------------------------------------------------------------------------
-# Input section — always shown so users can swap files before resetting
+# Input section
 # ---------------------------------------------------------------------------
 col_left, col_right = st.columns([1, 1], gap="large")
 
@@ -170,7 +254,7 @@ with col_right:
 st.divider()
 
 # ---------------------------------------------------------------------------
-# Generate button — only enabled when files are present AND no result exists yet
+# Generate button
 # ---------------------------------------------------------------------------
 can_generate = (
     audio_file is not None
@@ -190,21 +274,25 @@ generate_btn = st.button(
 )
 
 # ---------------------------------------------------------------------------
-# Processing — runs ONLY when the button is explicitly clicked.
-# Results are stored in session_state; subsequent reruns skip straight to
-# the display block below.
+# Processing — runs ONLY on explicit button click.
+# Uses @st.cache_data wrappers for audio and PDF so unchanged files reuse
+# prior results. Gemma 4 is called once and stored in session_state.
 # ---------------------------------------------------------------------------
 if generate_btn and can_generate:
-    # Clear any previous error
     st.session_state["error_msg"] = None
+    timings: dict[str, float] = {}
+    run_start = time.perf_counter()
 
-    transcript_result = None
-    pdf_result = None
-
-    # Stage 1: Transcribe audio
+    # ── Stage 1: Audio transcription ────────────────────────────────────────
     with st.status("🎙️ Transcribing audio…", expanded=True) as status:
-        st.write("Loading faster-whisper (base model, CPU int8)…")
-        transcript_result = transcribe_audio(audio_file.read(), audio_file.name)
+        audio_bytes = audio_file.read()
+        audio_hash  = _sha256(audio_bytes)
+        st.write(f"Audio: {audio_file.name} · {_fmt_size(len(audio_bytes))} "
+                 f"· hash `{audio_hash[:8]}…`")
+
+        t0 = time.perf_counter()
+        transcript_result = _cached_transcribe(audio_hash, audio_bytes)
+        wall = time.perf_counter() - t0
 
         if transcript_result["error"]:
             status.update(label="❌ Transcription failed", state="error")
@@ -214,8 +302,14 @@ if generate_btn and can_generate:
 
         word_count = len(transcript_result["transcript"].split())
         seg_count  = len(transcript_result["segments"])
+        cached_note = " (cached)" if wall < 0.05 else ""
+        timings["Audio decode"]    = transcript_result["decode_seconds"]
+        timings["Whisper inference"] = transcript_result["transcribe_seconds"]
         status.update(
-            label=f"✅ Transcribed — {word_count} words, {seg_count} segments",
+            label=(
+                f"✅ Transcribed — {word_count} words, {seg_count} segments"
+                f" · {transcript_result['transcribe_seconds']:.1f}s{cached_note}"
+            ),
             state="complete",
         )
         with st.expander("View transcript", expanded=False):
@@ -224,10 +318,16 @@ if generate_btn and can_generate:
                 or transcript_result["transcript"]
             )
 
-    # Stage 2: Extract PDF (if provided)
+    # ── Stage 2: PDF extraction ──────────────────────────────────────────────
     if pdf_file:
         with st.status("📄 Extracting PDF…", expanded=True) as status:
-            pdf_result = extract_pdf(pdf_file.read(), pdf_file.name)
+            pdf_bytes = pdf_file.read()
+            pdf_hash  = _sha256(pdf_bytes)
+            st.write(f"PDF: {pdf_file.name} · hash `{pdf_hash[:8]}…`")
+
+            t0 = time.perf_counter()
+            pdf_result = _cached_extract_pdf(pdf_hash, pdf_bytes, pdf_file.name)
+            wall = time.perf_counter() - t0
 
             if pdf_result["error"]:
                 status.update(label="❌ PDF extraction failed", state="error")
@@ -237,27 +337,33 @@ if generate_btn and can_generate:
 
             extractor_label = pdf_result["extractor"]
             page_count      = len(pdf_result["pages"])
+            cached_note = " (cached)" if wall < 0.05 else ""
+            timings["PDF extraction"] = pdf_result["extract_seconds"]
             status.update(
-                label=f"✅ Extracted {page_count} page(s) via {extractor_label}",
+                label=(
+                    f"✅ Extracted {page_count} page(s) via {extractor_label}"
+                    f" · {pdf_result['extract_seconds']:.1f}s{cached_note}"
+                ),
                 state="complete",
             )
             if pdf_result["warning"]:
                 st.warning(pdf_result["warning"])
-            with st.expander("View extracted text (first 1000 chars)", expanded=False):
+            with st.expander("View extracted text (first 1000 chars)",
+                             expanded=False):
                 st.text(pdf_result["text"][:1000])
     else:
         pdf_result = {
             "text": "", "pages": [], "extractor": "none",
-            "warning": None, "error": None,
+            "extract_seconds": 0.0, "warning": None, "error": None,
         }
 
-    # Stage 3: Read image bytes into memory
+    # ── Stage 3: Read image bytes ────────────────────────────────────────────
     image_data: list[tuple[str, bytes]] = []
     for img_file in valid_images[:8]:
         img_file.seek(0)
         image_data.append((img_file.name, img_file.read()))
 
-    # Stage 4: Synthesise procedure with Gemma 4
+    # ── Stage 4: Gemma 4 synthesis ───────────────────────────────────────────
     with st.status(
         f"🤖 Synthesising procedure with {GEMMA_MODEL}…", expanded=True
     ) as status:
@@ -265,6 +371,7 @@ if generate_btn and can_generate:
             f"Sending {len(image_data)} image(s), transcript, and "
             f"{'manual' if pdf_file else 'no manual'} to Gemma 4…"
         )
+        t0 = time.perf_counter()
         try:
             procedure = synthesize_procedure(
                 transcript=transcript_result["transcript"],
@@ -272,8 +379,14 @@ if generate_btn and can_generate:
                 images=image_data,
                 manual_text=pdf_result["text"],
             )
+            gemma_seconds = time.perf_counter() - t0
+            timings["Gemma 4 API"] = gemma_seconds
+            timings["Total"] = time.perf_counter() - run_start
             status.update(
-                label=f"✅ Procedure generated — {len(procedure.steps)} step(s)",
+                label=(
+                    f"✅ Procedure generated — {len(procedure.steps)} step(s)"
+                    f" · {gemma_seconds:.1f}s"
+                ),
                 state="complete",
             )
         except RuntimeError as exc:
@@ -282,17 +395,17 @@ if generate_btn and can_generate:
             st.session_state["error_msg"] = str(exc)
             st.stop()
 
-    # Persist everything — from this point forward reruns read from session_state
+    # Persist everything in session_state
     st.session_state["procedure"]       = procedure
     st.session_state["transcript"]      = transcript_result
     st.session_state["pdf_result"]      = pdf_result
     st.session_state["image_data"]      = image_data
     st.session_state["processing_done"] = True
-    st.rerun()  # clean rerun so the display block renders without the status widgets
+    st.session_state["timings"]         = timings
+    st.rerun()  # clean rerun → display block renders without status widgets
 
 # ---------------------------------------------------------------------------
-# Display — rendered on every rerun once processing_done is True.
-# No processing happens here; all data comes from session_state.
+# Display — reads only from session_state; no processing here.
 # ---------------------------------------------------------------------------
 if st.session_state["processing_done"] and st.session_state["procedure"] is not None:
 
@@ -302,26 +415,22 @@ if st.session_state["processing_done"] and st.session_state["procedure"] is not 
     st.subheader(f"📋 {procedure.title}")
     st.markdown(procedure.overview)
 
-    # Tools & materials
     if procedure.tools_and_materials:
         with st.expander("🔧 Tools and Materials", expanded=True):
             for item in procedure.tools_and_materials:
                 st.markdown(f"- {item}")
 
-    # General warnings
     if procedure.general_warnings:
         with st.expander("⚠️ General Warnings", expanded=True):
             for w in procedure.general_warnings:
                 st.warning(w)
 
-    # Steps
     st.markdown("### Steps")
     for step in procedure.steps:
         inferred_note = " *(inferred — no direct source)*" if step.is_inferred else ""
         with st.expander(
             f"Step {step.step_number}: {step.title}{inferred_note}",
             expanded=True,
-            # Stable key per step — prevents Streamlit mixing up expander state
         ):
             st.markdown(step.instruction)
 
@@ -350,7 +459,6 @@ if st.session_state["processing_done"] and st.session_state["procedure"] is not 
             if step.uncertainty_note:
                 st.warning(f"🔶 Uncertainty: {step.uncertainty_note}")
 
-    # Gaps, contradictions, questions
     col_a, col_b, col_c = st.columns(3)
     with col_a:
         if procedure.missing_information:
@@ -368,7 +476,6 @@ if st.session_state["processing_done"] and st.session_state["procedure"] is not 
             for item in procedure.unresolved_questions:
                 st.markdown(f"- {item}")
 
-    # Completion checklist — stable keys prevent rerun-triggered reset
     if procedure.completion_checklist:
         st.markdown("### ✅ Completion Checklist")
         for idx, item in enumerate(procedure.completion_checklist):
@@ -376,7 +483,6 @@ if st.session_state["processing_done"] and st.session_state["procedure"] is not 
 
     st.divider()
 
-    # Download — stable key so clicking it doesn't wipe the procedure
     markdown_output = procedure_to_markdown(procedure)
     safe_title = procedure.title.lower().replace(" ", "_")[:40]
     st.download_button(

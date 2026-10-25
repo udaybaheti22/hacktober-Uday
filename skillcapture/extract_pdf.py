@@ -4,36 +4,76 @@ PDF content extraction using Docling.
 Primary path : Docling (structured extraction with page references).
 Fallback path: pypdf plain-text extraction, clearly flagged in the output.
 
-The caller receives a uniform dict regardless of which path ran, so the
-rest of the pipeline never needs to check which extractor was used.
+DocumentConverter is expensive to build (~3-8 s, loads ML models).
+Expose get_docling_converter() so app.py can wrap it with @st.cache_resource
+and reuse the same instance across Streamlit reruns.
+
+The caller receives a uniform dict regardless of which path ran.
 """
 
 from __future__ import annotations
 
 import io
-import tempfile
 import os
+import tempfile
+import time
 from pathlib import Path
+
+
+# ---------------------------------------------------------------------------
+# Converter accessor — wrap with @st.cache_resource in app.py
+# ---------------------------------------------------------------------------
+
+def get_docling_converter():
+    """
+    Build and return a Docling DocumentConverter.
+
+    Intended to be called through @st.cache_resource.
+
+    Returns (converter, init_seconds) or raises RuntimeError if Docling is
+    not installed.
+    """
+    try:
+        from docling.document_converter import DocumentConverter  # type: ignore
+    except ImportError as exc:
+        raise RuntimeError(
+            "Docling is not installed. Run: pip install docling"
+        ) from exc
+
+    t0 = time.perf_counter()
+    converter = DocumentConverter()
+    elapsed = time.perf_counter() - t0
+    return converter, elapsed
 
 
 # ---------------------------------------------------------------------------
 # Public interface
 # ---------------------------------------------------------------------------
 
-def extract_pdf(pdf_bytes: bytes, filename: str = "manual.pdf") -> dict:
+def extract_pdf(pdf_bytes: bytes, filename: str = "manual.pdf",
+                converter=None) -> dict:
     """
     Extract text content from a PDF.
 
-    Returns:
-        {
-            "text": str,               # full extracted text
-            "pages": list[dict],       # [{page: int, text: str}, ...]
-            "extractor": str,          # "docling" | "pypdf" | "none"
-            "warning": str | None,     # set when falling back or partially failing
-            "error": str | None        # set only on complete failure
-        }
+    Parameters
+    ----------
+    pdf_bytes : raw PDF bytes
+    filename  : original filename (used for suffix detection)
+    converter : optional pre-built Docling DocumentConverter; if None, a new
+                one is created (slower — prefer passing a cached instance)
+
+    Returns
+    -------
+    {
+        "text":             str,
+        "pages":            list[dict],   # [{page: int, text: str}, ...]
+        "extractor":        str,          # "docling" | "pypdf" | "none"
+        "extract_seconds":  float,        # wall-clock extraction time
+        "warning":          str | None,
+        "error":            str | None,
+    }
     """
-    result = _try_docling(pdf_bytes, filename)
+    result = _try_docling(pdf_bytes, filename, converter)
     if result is not None:
         return result
 
@@ -45,6 +85,7 @@ def extract_pdf(pdf_bytes: bytes, filename: str = "manual.pdf") -> dict:
         "text": "",
         "pages": [],
         "extractor": "none",
+        "extract_seconds": 0.0,
         "warning": None,
         "error": (
             "Neither Docling nor pypdf is installed. "
@@ -57,7 +98,7 @@ def extract_pdf(pdf_bytes: bytes, filename: str = "manual.pdf") -> dict:
 # Docling path
 # ---------------------------------------------------------------------------
 
-def _try_docling(pdf_bytes: bytes, filename: str) -> dict | None:
+def _try_docling(pdf_bytes: bytes, filename: str, converter=None) -> dict | None:
     """Attempt extraction with Docling. Returns None if Docling is unavailable."""
     try:
         from docling.document_converter import DocumentConverter  # type: ignore
@@ -66,30 +107,26 @@ def _try_docling(pdf_bytes: bytes, filename: str) -> dict | None:
 
     suffix = Path(filename).suffix or ".pdf"
     tmp_path = None
+    t0 = time.perf_counter()
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             tmp.write(pdf_bytes)
             tmp_path = tmp.name
 
-        converter = DocumentConverter()
-        result_doc = converter.convert(tmp_path)
+        # Use the passed-in converter (cached) or build a fresh one
+        conv = converter if converter is not None else DocumentConverter()
+        result_doc = conv.convert(tmp_path)
         doc = result_doc.document
 
-        # Collect text grouped by page
         pages: list[dict] = []
         full_parts: list[str] = []
 
-        # Docling exposes .export_to_markdown() for the whole document
-        # and .texts / .pages for structured access.
-        # We use export_to_markdown per page when possible, otherwise whole-doc.
         try:
-            # Try page-level grouping
             page_texts: dict[int, list[str]] = {}
             for element, _level in doc.iterate_items():
                 prov = getattr(element, "prov", None)
                 page_no = None
                 if prov:
-                    # prov may be a list of ProvenanceItem
                     if isinstance(prov, list) and prov:
                         page_no = getattr(prov[0], "page_no", None)
                     else:
@@ -105,26 +142,28 @@ def _try_docling(pdf_bytes: bytes, filename: str) -> dict | None:
                 full_parts.append(f"[Page {page_no}]\n{combined}")
 
         except Exception:  # noqa: BLE001
-            # Fall back to whole-document markdown export
             md = doc.export_to_markdown()
             pages = [{"page": 1, "text": md}]
             full_parts = [md]
 
+        extract_seconds = time.perf_counter() - t0
         full_text = "\n\n".join(full_parts)
         return {
             "text": full_text,
             "pages": pages,
             "extractor": "docling",
+            "extract_seconds": extract_seconds,
             "warning": None,
             "error": None,
         }
 
     except Exception as exc:  # noqa: BLE001
-        # Docling is installed but processing failed; fall through to pypdf
+        extract_seconds = time.perf_counter() - t0
         return {
             "text": "",
             "pages": [],
             "extractor": "docling",
+            "extract_seconds": extract_seconds,
             "warning": f"Docling processing failed ({exc}). Falling back to pypdf.",
             "error": None,
         }
@@ -147,6 +186,7 @@ def _try_pypdf(pdf_bytes: bytes) -> dict | None:
     except ImportError:
         return None
 
+    t0 = time.perf_counter()
     try:
         reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
         pages: list[dict] = []
@@ -161,6 +201,7 @@ def _try_pypdf(pdf_bytes: bytes) -> dict | None:
             "text": "\n\n".join(full_parts),
             "pages": pages,
             "extractor": "pypdf",
+            "extract_seconds": time.perf_counter() - t0,
             "warning": (
                 "Using pypdf plain-text fallback instead of Docling. "
                 "Structured layout information is not preserved."
@@ -172,6 +213,7 @@ def _try_pypdf(pdf_bytes: bytes) -> dict | None:
             "text": "",
             "pages": [],
             "extractor": "pypdf",
+            "extract_seconds": time.perf_counter() - t0,
             "warning": None,
             "error": f"pypdf extraction failed: {exc}",
         }

@@ -54,6 +54,13 @@ from skillcapture.transcribe import (
 from skillcapture.extract_pdf import get_docling_converter, extract_pdf
 from skillcapture.synthesize import synthesize_procedure, GEMMA_MODEL
 from skillcapture.export import procedure_to_markdown
+from skillcapture.diagrams import (
+    build_mermaid_flowchart,
+    build_mermaid_sequence,
+    build_graphviz_digraph,
+    validate_mermaid_syntax,
+    validate_dot_syntax,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -498,3 +505,74 @@ if st.session_state["processing_done"] and st.session_state["procedure"] is not 
     st.caption(
         "Use **🔄 Start new procedure** in the sidebar to upload different files."
     )
+
+    # -------------------------------------------------------------------------
+    # Diagram views — built from the already-generated procedure.
+    # No AI API calls here. Selecting a diagram type does not reset state.
+    # -------------------------------------------------------------------------
+    st.divider()
+    st.subheader("📊 Diagram Views")
+    st.caption(
+        "Visualise the procedure as a diagram. "
+        "Selecting a diagram does not re-run Whisper, Docling, or Gemma 4."
+    )
+
+    diagram_tab_labels = [
+        "Mermaid Flowchart",
+        "Mermaid Sequence",
+        "Graphviz Directed Graph",
+    ]
+    dtab_flow, dtab_seq, dtab_dot = st.tabs(diagram_tab_labels)
+
+    # ── Mermaid flowchart ────────────────────────────────────────────────────
+    with dtab_flow:
+        diagram_fc, err_fc = build_mermaid_flowchart(procedure)
+        if err_fc:
+            st.warning(f"Could not build flowchart: {err_fc}")
+        else:
+            valid, valmsg = validate_mermaid_syntax(diagram_fc)
+            if not valid:
+                st.error(f"Flowchart validation failed: {valmsg}")
+            else:
+                try:
+                    from streamlit_mermaid import st_mermaid  # type: ignore
+                    st_mermaid(diagram_fc, height=max(300, len(procedure.steps) * 90))
+                except Exception as render_exc:
+                    st.error(f"Mermaid render error: {render_exc}")
+                with st.expander("View Mermaid source", expanded=False):
+                    st.code(diagram_fc, language="text")
+
+    # ── Mermaid sequence diagram ─────────────────────────────────────────────
+    with dtab_seq:
+        diagram_seq, err_seq = build_mermaid_sequence(procedure)
+        if err_seq:
+            st.info(f"Sequence diagram not available: {err_seq}")
+        else:
+            valid, valmsg = validate_mermaid_syntax(diagram_seq)
+            if not valid:
+                st.error(f"Sequence diagram validation failed: {valmsg}")
+            else:
+                try:
+                    from streamlit_mermaid import st_mermaid  # type: ignore
+                    st_mermaid(diagram_seq, height=max(300, len(procedure.steps) * 110))
+                except Exception as render_exc:
+                    st.error(f"Mermaid render error: {render_exc}")
+                with st.expander("View Mermaid source", expanded=False):
+                    st.code(diagram_seq, language="text")
+
+    # ── Graphviz directed graph ──────────────────────────────────────────────
+    with dtab_dot:
+        dot_source, err_dot = build_graphviz_digraph(procedure)
+        if err_dot:
+            st.warning(f"Could not build Graphviz graph: {err_dot}")
+        else:
+            valid, valmsg = validate_dot_syntax(dot_source)
+            if not valid:
+                st.error(f"DOT validation failed: {valmsg}")
+            else:
+                try:
+                    st.graphviz_chart(dot_source, use_container_width=True)
+                except Exception as render_exc:
+                    st.error(f"Graphviz render error: {render_exc}")
+                with st.expander("View DOT source", expanded=False):
+                    st.code(dot_source, language="dot")

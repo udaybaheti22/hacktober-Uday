@@ -90,13 +90,15 @@ The app will open at `http://localhost:8501`.
 
 | Package | Version | Purpose | License |
 |---------|---------|---------|---------|
-| streamlit | 1.45.1 | Web UI framework | Apache 2.0 |
-| google-genai | 1.16.0 | Gemini API client (Gemma 4) | Apache 2.0 |
-| faster-whisper | 1.1.1 | Local audio transcription | MIT |
+| streamlit | 1.66.1 | Web UI framework | Apache 2.0 |
+| google-genai | 2.14.0 | Gemini API client (Gemma 4) | Apache 2.0 |
+| faster-whisper | 1.2.1 | Local audio transcription | MIT |
 | docling | 2.36.0 | Structured PDF extraction | MIT |
-| pydantic | 2.11.4 | Output schema validation | MIT |
-| python-dotenv | 1.1.0 | Environment variable loading | BSD-3-Clause |
-| pypdf | *(fallback)* | Plain-text PDF fallback if Docling is unavailable | BSD-3-Clause |
+| pydantic | 2.14.1 | Output schema validation | MIT |
+| python-dotenv | 1.2.4 | Environment variable loading | BSD-3-Clause |
+| pypdf | 5.1.0 | Plain-text PDF fallback if Docling is unavailable | BSD-3-Clause |
+| graphviz | 0.21 | Generates DOT source for `st.graphviz_chart` directed-graph diagrams | MIT — [github.com/xflr6/graphviz](https://github.com/xflr6/graphviz) |
+| streamlit-mermaid | 0.2.0 | Renders Mermaid flowchart and sequence diagrams in Streamlit | MIT — [github.com/jhbale11/streamlit-mermaid](https://github.com/jhbale11/streamlit-mermaid) |
 
 ---
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class SourceRef(BaseModel):
@@ -31,6 +31,14 @@ class SourceRef(BaseModel):
         default=None,
         description="Page number or section identifier from the PDF manual.",
     )
+
+    @field_validator("page_ref", mode="before")
+    @classmethod
+    def coerce_page_ref(cls, v: object) -> str | None:
+        """Model sometimes returns page_ref as an int — coerce to str."""
+        if v is None:
+            return None
+        return str(v)
     transcript_timestamp: str | None = Field(
         default=None,
         description="Approximate timestamp in the audio transcript, e.g. '00:45'.",

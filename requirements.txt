@@ -8,5 +8,4 @@ docling==2.36.0
 pydantic==2.14.1
 python-dotenv==1.2.4
 pypdf==5.1.0
-graphviz==0.21
 streamlit-mermaid==0.2.0

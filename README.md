@@ -97,7 +97,6 @@ The app will open at `http://localhost:8501`.
 | pydantic | 2.14.1 | Output schema validation | MIT |
 | python-dotenv | 1.2.4 | Environment variable loading | BSD-3-Clause |
 | pypdf | 5.1.0 | Plain-text PDF fallback if Docling is unavailable | BSD-3-Clause |
-| graphviz | 0.21 | Generates DOT source for `st.graphviz_chart` directed-graph diagrams | MIT — [github.com/xflr6/graphviz](https://github.com/xflr6/graphviz) |
 | streamlit-mermaid | 0.2.0 | Renders Mermaid flowchart and sequence diagrams in Streamlit | MIT — [github.com/jhbale11/streamlit-mermaid](https://github.com/jhbale11/streamlit-mermaid) |
 
 ---

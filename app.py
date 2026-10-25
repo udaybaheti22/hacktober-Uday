@@ -57,9 +57,7 @@ from skillcapture.export import procedure_to_markdown
 from skillcapture.diagrams import (
     build_mermaid_flowchart,
     build_mermaid_sequence,
-    build_graphviz_digraph,
     validate_mermaid_syntax,
-    validate_dot_syntax,
 )
 
 
@@ -507,24 +505,18 @@ if st.session_state["processing_done"] and st.session_state["procedure"] is not 
     )
 
     # -------------------------------------------------------------------------
-    # Diagram views — built from the already-generated procedure.
-    # No AI API calls here. Selecting a diagram type does not reset state.
+    # Mermaid diagram views
+    # Built from the already-generated procedure — no API calls.
     # -------------------------------------------------------------------------
     st.divider()
     st.subheader("📊 Diagram Views")
     st.caption(
-        "Visualise the procedure as a diagram. "
-        "Selecting a diagram does not re-run Whisper, Docling, or Gemma 4."
+        "Visualise the procedure as a Mermaid diagram. "
+        "Changing diagram type does not re-run Whisper, Docling, or Gemma 4."
     )
 
-    diagram_tab_labels = [
-        "Mermaid Flowchart",
-        "Mermaid Sequence",
-        "Graphviz Directed Graph",
-    ]
-    dtab_flow, dtab_seq, dtab_dot = st.tabs(diagram_tab_labels)
+    dtab_flow, dtab_seq = st.tabs(["Flowchart", "Sequence Diagram"])
 
-    # ── Mermaid flowchart ────────────────────────────────────────────────────
     with dtab_flow:
         diagram_fc, err_fc = build_mermaid_flowchart(procedure)
         if err_fc:
@@ -542,7 +534,6 @@ if st.session_state["processing_done"] and st.session_state["procedure"] is not 
                 with st.expander("View Mermaid source", expanded=False):
                     st.code(diagram_fc, language="text")
 
-    # ── Mermaid sequence diagram ─────────────────────────────────────────────
     with dtab_seq:
         diagram_seq, err_seq = build_mermaid_sequence(procedure)
         if err_seq:
@@ -560,19 +551,74 @@ if st.session_state["processing_done"] and st.session_state["procedure"] is not 
                 with st.expander("View Mermaid source", expanded=False):
                     st.code(diagram_seq, language="text")
 
-    # ── Graphviz directed graph ──────────────────────────────────────────────
-    with dtab_dot:
-        dot_source, err_dot = build_graphviz_digraph(procedure)
-        if err_dot:
-            st.warning(f"Could not build Graphviz graph: {err_dot}")
-        else:
-            valid, valmsg = validate_dot_syntax(dot_source)
-            if not valid:
-                st.error(f"DOT validation failed: {valmsg}")
-            else:
-                try:
-                    st.graphviz_chart(dot_source, use_container_width=True)
-                except Exception as render_exc:
-                    st.error(f"Graphviz render error: {render_exc}")
-                with st.expander("View DOT source", expanded=False):
-                    st.code(dot_source, language="dot")
+    # -------------------------------------------------------------------------
+    # Open-source libraries used in this procedure
+    # Checkbox list — purely informational, no reprocessing triggered.
+    # -------------------------------------------------------------------------
+    st.divider()
+    st.subheader("🔧 Open-Source Libraries")
+    st.caption(
+        "These are the open-source tools that powered this procedure. "
+        "Click any checkbox to mark it as explored."
+    )
+
+    # Each entry: (label, description, url, license)
+    _OSS_LIBS = [
+        (
+            "faster-whisper",
+            "Local audio transcription — used to transcribe your recording.",
+            "https://github.com/SYSTRAN/faster-whisper",
+            "MIT",
+        ),
+        (
+            "Docling",
+            "PDF extraction — parsed your reference manual with page references.",
+            "https://github.com/DS4SD/docling",
+            "MIT",
+        ),
+        (
+            "Gemma 4 (gemma-4-26b-a4b-it)",
+            "Open-weight multimodal model — synthesised the procedure from your inputs.",
+            "https://ai.google.dev/gemma",
+            "Gemma Terms of Use",
+        ),
+        (
+            "Pydantic",
+            "Schema validation — ensured the generated procedure matched the required structure.",
+            "https://github.com/pydantic/pydantic",
+            "MIT",
+        ),
+        (
+            "Streamlit",
+            "Web UI framework — powers this entire interface.",
+            "https://github.com/streamlit/streamlit",
+            "Apache 2.0",
+        ),
+        (
+            "streamlit-mermaid",
+            "Renders Mermaid flowchart and sequence diagrams inside Streamlit.",
+            "https://github.com/jhbale11/streamlit-mermaid",
+            "MIT",
+        ),
+        (
+            "pypdf",
+            "Plain-text PDF fallback when Docling is unavailable.",
+            "https://github.com/py-pdf/pypdf",
+            "BSD-3-Clause",
+        ),
+        (
+            "python-dotenv",
+            "Loads your GEMINI_API_KEY from the .env file safely.",
+            "https://github.com/theskumar/python-dotenv",
+            "BSD-3-Clause",
+        ),
+    ]
+
+    for i, (name, description, url, lic) in enumerate(_OSS_LIBS):
+        col_cb, col_info = st.columns([1, 11])
+        with col_cb:
+            st.checkbox("", key=f"oss_lib_{i}", label_visibility="collapsed")
+        with col_info:
+            st.markdown(
+                f"**[{name}]({url})** &nbsp;`{lic}`  \n{description}"
+            )

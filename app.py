@@ -18,7 +18,7 @@ load_dotenv()
 
 
 # ---------------------------------------------------------------------------
-# Utility
+# Utilities
 # ---------------------------------------------------------------------------
 def _fmt_size(size_bytes: int) -> str:
     if size_bytes < 1024:
@@ -30,12 +30,11 @@ def _fmt_size(size_bytes: int) -> str:
 
 
 def _sha256(data: bytes) -> str:
-    """Content-based cache key: SHA-256 hex of raw bytes."""
     return hashlib.sha256(data).hexdigest()
 
 
 # ---------------------------------------------------------------------------
-# Page config — must be the first Streamlit call
+# Page config  — must be the very first Streamlit call
 # ---------------------------------------------------------------------------
 st.set_page_config(
     page_title="SkillCapture",
@@ -44,385 +43,695 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------------
-# Hacktoberfest theme — injected CSS
-# Palette from hacktoberfest.com brand kit:
-#   Forest       #3D5F58   Deep forest  #2E4742
-#   Ink          #231F20   Paper        #F2F2EB
-#   Orange       #E53927   Maroon       #671912
-#   Ochre        #F5B726   Sky          #8BB2DE
+# Design system — CSS variables + full theme
+#
+# Palette (retro editorial, inspired by open-source community aesthetic):
+#   --forest   #36564F   (hero bg, header)
+#   --cream    #F5F3E8   (main page bg, card bg)
+#   --ink      #17221F   (text, borders, shadows)
+#   --coral    #E76F5A   (primary CTA, step numbers, error accents)
+#   --blue     #91B0DF   (secondary labels, info, evidence badges)
+#   --mustard  #F3C64E   (highlights, warnings, hover fills)
+#   --gray     #BACBC3   (muted text, dividers)
 # ---------------------------------------------------------------------------
-st.markdown(
-    """
+st.markdown("""
 <style>
-/* ── Google Fonts ── */
-@import url('https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;600;700;800&family=Inter:wght@400;500;600&family=Martian+Mono:wght@400;600&display=swap');
+/* ── Design tokens ── */
+:root {
+  --forest:  #36564F;
+  --cream:   #F5F3E8;
+  --ink:     #17221F;
+  --coral:   #E76F5A;
+  --blue:    #91B0DF;
+  --mustard: #F3C64E;
+  --gray:    #BACBC3;
+  --shadow:  3px 3px 0 var(--ink);
+  --shadow-lg: 5px 5px 0 var(--ink);
+  --radius:  4px;
+}
 
-/* ── Root overrides ── */
+/* ── Fonts — system stack that doesn't need Google Fonts to load ── */
+/* Georgia gives the editorial serif feel; system-ui for body. */
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap');
+
+/* ── Global reset ── */
 html, body, [class*="css"] {
-    font-family: 'Inter', sans-serif;
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* ── Main background ── */
+/* ── Page background — warm cream with a subtle dot-grid texture ── */
 .stApp {
-    background-color: #2E4742;
+  background-color: var(--cream) !important;
+  background-image: radial-gradient(var(--gray) 1px, transparent 1px);
+  background-size: 22px 22px;
 }
 
-/* ── Top navbar strip ── */
+/* ── Streamlit toolbar / top bar — hide it for cleaner look ── */
 header[data-testid="stHeader"] {
-    background-color: #231F20 !important;
-    border-bottom: 3px solid #E53927;
+  background: transparent !important;
+  border-bottom: none !important;
+  height: 0 !important;
 }
+[data-testid="stToolbar"] { display: none !important; }
 
-/* ── Sidebar ── */
+/* ── Sidebar — forest green, clean ── */
 section[data-testid="stSidebar"] {
-    background-color: #231F20 !important;
-    border-right: 2px solid #3D5F58;
+  background-color: var(--forest) !important;
+  border-right: 2px solid var(--ink) !important;
+  box-shadow: 3px 0 0 var(--ink);
 }
-section[data-testid="stSidebar"] * {
-    color: #F2F2EB !important;
+section[data-testid="stSidebar"] * { color: var(--cream) !important; }
+section[data-testid="stSidebar"] a { color: var(--mustard) !important; text-decoration: underline; }
+section[data-testid="stSidebar"] code {
+  background: rgba(0,0,0,0.3) !important;
+  color: var(--mustard) !important;
 }
 
-/* ── Main content area ── */
+/* ── Main content container ── */
 .block-container {
-    padding-top: 2rem;
-    padding-bottom: 3rem;
-    max-width: 1200px;
+  padding-top: 0 !important;
+  padding-bottom: 4rem;
+  max-width: 1140px;
 }
 
-/* ── App title — Barlow Semi Condensed, bold ── */
-h1 {
-    font-family: 'Barlow Semi Condensed', sans-serif !important;
-    font-weight: 800 !important;
-    font-size: 2.6rem !important;
-    color: #F2F2EB !important;
-    letter-spacing: -0.5px;
-    text-transform: uppercase;
+/* ── Typography ── */
+h1, h2, h3, h4 {
+  font-family: 'Syne', Georgia, serif !important;
+  color: var(--ink) !important;
+  letter-spacing: -0.02em;
 }
+h1 { font-size: 3rem !important; font-weight: 800 !important; line-height: 1.1; }
+h2 { font-size: 2rem !important; font-weight: 800 !important; line-height: 1.2; }
+h3 { font-size: 1.35rem !important; font-weight: 700 !important; }
+h4 { font-size: 1.05rem !important; font-weight: 700 !important; color: var(--forest) !important; }
+p, li, label { color: var(--ink) !important; font-size: 0.97rem; line-height: 1.65; }
+strong { color: var(--ink) !important; }
 
-/* ── H2 / H3 — section headings ── */
-h2 {
-    font-family: 'Barlow Semi Condensed', sans-serif !important;
-    font-weight: 700 !important;
-    color: #F2F2EB !important;
-    font-size: 1.8rem !important;
-}
-h3 {
-    font-family: 'Barlow Semi Condensed', sans-serif !important;
-    font-weight: 600 !important;
-    color: #F5B726 !important;
-    font-size: 1.3rem !important;
-}
-h4 {
-    font-family: 'Barlow Semi Condensed', sans-serif !important;
-    font-weight: 600 !important;
-    color: #8BB2DE !important;
-}
-
-/* ── Orange accent on subheader ── */
-h2 em, h3 em {
-    color: #E53927;
-    font-style: normal;
-}
-
-/* ── Body text ── */
-p, li, label, .stMarkdown {
-    color: #F2F2EB !important;
-    font-size: 0.97rem;
-    line-height: 1.6;
-}
-
-/* ── Caption / small text ── */
-small, .stCaption, [data-testid="stCaptionContainer"] {
-    color: #8BB2DE !important;
-    font-size: 0.82rem !important;
-}
-
-/* ── Divider ── */
+/* ── Dividers ── */
 hr {
-    border: none;
-    border-top: 2px dashed #3D5F58 !important;
-    margin: 1.5rem 0;
+  border: none !important;
+  border-top: 2px solid var(--ink) !important;
+  margin: 2.5rem 0 !important;
+  opacity: 0.15 !important;
 }
 
-/* ── PRIMARY button (Generate Procedure) ── */
+/* ── Captions ── */
+small, [data-testid="stCaptionContainer"], .stCaption {
+  color: var(--gray) !important;
+  font-size: 0.8rem !important;
+}
+
+/* ── ────────────────────────────────────────────── ── */
+/* ── CUSTOM LAYOUT COMPONENTS                       ── */
+/* ── ────────────────────────────────────────────── ── */
+
+/* Top navigation bar */
+.sc-nav {
+  background: var(--forest);
+  border-bottom: 2px solid var(--ink);
+  padding: 0.85rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: -1rem -4rem 0;   /* bleed to container edges */
+  box-shadow: 0 2px 0 var(--ink);
+}
+.sc-nav-logo {
+  font-family: 'Syne', Georgia, serif;
+  font-weight: 800;
+  font-size: 1.3rem;
+  color: var(--cream) !important;
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
+}
+.sc-nav-logo span { color: var(--coral); }
+.sc-nav-sub {
+  font-size: 0.78rem;
+  color: var(--gray) !important;
+  margin-top: 1px;
+  font-family: 'DM Mono', monospace;
+}
+.sc-nav-links {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+}
+.sc-nav-links a {
+  font-size: 0.82rem;
+  color: var(--cream) !important;
+  text-decoration: none;
+  font-family: 'DM Mono', monospace;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-bottom: 1px solid transparent;
+  padding-bottom: 1px;
+  transition: border-color 0.1s;
+}
+.sc-nav-links a:hover { border-color: var(--mustard); color: var(--mustard) !important; }
+.sc-nav-badge {
+  background: var(--coral);
+  color: var(--cream) !important;
+  font-size: 0.7rem;
+  font-family: 'DM Mono', monospace;
+  font-weight: 500;
+  padding: 3px 10px;
+  border: 1.5px solid var(--ink);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-decoration: none;
+}
+
+/* Hero section */
+.sc-hero {
+  background: var(--forest);
+  border: 2px solid var(--ink);
+  border-top: none;
+  padding: 3.5rem 2.5rem 3rem;
+  position: relative;
+  overflow: hidden;
+  margin: 0 -4rem 0;
+  box-shadow: 0 4px 0 var(--ink);
+}
+/* CSS pixel-art decorative grid — top-right corner */
+.sc-hero::after {
+  content: "";
+  position: absolute;
+  top: 18px; right: 24px;
+  width: 72px; height: 72px;
+  background-image:
+    linear-gradient(var(--coral) 0%, var(--coral) 100%),
+    linear-gradient(var(--mustard) 0%, var(--mustard) 100%),
+    linear-gradient(var(--coral) 0%, var(--coral) 100%),
+    linear-gradient(var(--blue) 0%, var(--blue) 100%),
+    linear-gradient(var(--coral) 0%, var(--coral) 100%),
+    linear-gradient(var(--mustard) 0%, var(--mustard) 100%);
+  background-size: 12px 12px;
+  background-position:
+    0 0, 12px 0, 24px 0,
+    0 12px, 12px 12px, 24px 12px;
+  background-repeat: no-repeat;
+  opacity: 0.7;
+}
+.sc-hero-eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--mustard) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  margin-bottom: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.sc-hero-eyebrow::before {
+  content: "";
+  display: inline-block;
+  width: 20px; height: 2px;
+  background: var(--coral);
+}
+.sc-hero h1 {
+  color: var(--cream) !important;
+  font-size: 3.2rem !important;
+  font-weight: 800 !important;
+  line-height: 1.05 !important;
+  margin: 0 0 1rem !important;
+  max-width: 700px;
+}
+.sc-hero h1 em {
+  color: var(--coral);
+  font-style: normal;
+}
+.sc-hero-body {
+  color: var(--gray) !important;
+  font-size: 1.05rem;
+  max-width: 580px;
+  line-height: 1.6;
+  margin-bottom: 1.8rem;
+}
+.sc-tech-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+.sc-tech-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(255,255,255,0.1);
+  border: 1.5px solid rgba(255,255,255,0.3);
+  color: var(--cream) !important;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.78rem;
+  padding: 4px 12px;
+  border-radius: var(--radius);
+  letter-spacing: 0.04em;
+}
+.sc-tech-pill .dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--mustard);
+  flex-shrink: 0;
+}
+
+/* Section wrapper — light cream card with offset shadow */
+.sc-section {
+  background: var(--cream);
+  border: 2px solid var(--ink);
+  border-radius: var(--radius);
+  padding: 2rem 2rem 1.5rem;
+  margin-bottom: 2rem;
+  box-shadow: var(--shadow-lg);
+  position: relative;
+}
+.sc-section-label {
+  position: absolute;
+  top: -14px; left: 20px;
+  background: var(--coral);
+  color: var(--cream) !important;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.68rem;
+  font-weight: 500;
+  padding: 2px 10px;
+  border: 1.5px solid var(--ink);
+  border-radius: var(--radius);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* Input card — outlined, hard shadow */
+.sc-input-card {
+  border: 2px solid var(--ink);
+  border-radius: var(--radius);
+  padding: 1.4rem 1.4rem 1rem;
+  background: white;
+  box-shadow: var(--shadow);
+  height: 100%;
+}
+.sc-input-card-icon {
+  font-size: 1.6rem;
+  margin-bottom: 0.4rem;
+  line-height: 1;
+}
+.sc-input-card-title {
+  font-family: 'Syne', Georgia, serif;
+  font-weight: 800;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--forest) !important;
+  margin-bottom: 0.2rem;
+}
+.sc-input-card-sub {
+  font-size: 0.75rem;
+  color: var(--gray) !important;
+  font-family: 'DM Mono', monospace;
+  margin-bottom: 0.8rem;
+}
+.sc-file-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--cream);
+  border: 1.5px solid var(--ink);
+  border-radius: var(--radius);
+  padding: 4px 10px;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.76rem;
+  color: var(--ink) !important;
+  margin-top: 0.5rem;
+  box-shadow: 2px 2px 0 var(--ink);
+}
+.sc-file-pill .sz {
+  color: var(--gray) !important;
+  font-size: 0.7rem;
+}
+
+/* Status pill for upload state */
+.sc-status { display: inline-block; padding: 2px 8px; border-radius: var(--radius);
+  font-family: 'DM Mono', monospace; font-size: 0.7rem; border: 1.5px solid; }
+.sc-status-empty  { background: var(--cream); color: var(--gray) !important; border-color: var(--gray); }
+.sc-status-ready  { background: #e8f5f0; color: var(--forest) !important; border-color: var(--forest); }
+.sc-status-opt    { background: #fdf9ec; color: #7a6020 !important; border-color: var(--mustard); }
+
+/* Generate CTA area */
+.sc-cta-wrap {
+  border: 2px solid var(--ink);
+  border-radius: var(--radius);
+  background: var(--forest);
+  padding: 1.8rem 2rem;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.sc-cta-prompt {
+  color: var(--gray) !important;
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+.sc-pipeline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+.sc-pipeline-step {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.73rem;
+  color: var(--cream) !important;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.25);
+  padding: 3px 10px;
+  border-radius: var(--radius);
+}
+.sc-pipeline-arrow { color: var(--coral) !important; font-size: 0.9rem; }
+
+/* Procedure output */
+.sc-proc-banner {
+  background: var(--forest);
+  border: 2px solid var(--ink);
+  border-radius: var(--radius);
+  padding: 2rem 2.5rem;
+  margin-bottom: 2rem;
+  box-shadow: var(--shadow-lg);
+  position: relative;
+}
+.sc-proc-banner::before {
+  content: "GENERATED PROCEDURE";
+  position: absolute; top: -13px; left: 18px;
+  background: var(--mustard);
+  color: var(--ink) !important;
+  font-family: 'DM Mono', monospace; font-size: 0.65rem;
+  padding: 2px 10px; border: 1.5px solid var(--ink);
+  border-radius: var(--radius); letter-spacing: 0.1em;
+}
+.sc-proc-banner h2 {
+  color: var(--cream) !important;
+  font-size: 2rem !important;
+  margin: 0 0 0.6rem !important;
+}
+.sc-proc-banner p { color: var(--gray) !important; margin: 0; font-size: 1rem; }
+
+/* Step cards */
+.sc-step {
+  border: 1.5px solid var(--ink);
+  border-left: 5px solid var(--coral);
+  border-radius: var(--radius);
+  background: white;
+  padding: 1.2rem 1.4rem;
+  margin-bottom: 1rem;
+  box-shadow: var(--shadow);
+  position: relative;
+}
+.sc-step.inferred { border-left-color: var(--blue); }
+.sc-step.review   { border-left-color: var(--mustard); }
+.sc-step-num {
+  font-family: 'Syne', Georgia, serif;
+  font-weight: 800; font-size: 2.2rem;
+  color: var(--coral); line-height: 1;
+  margin-right: 0.8rem; min-width: 2rem;
+}
+.sc-step-num.inferred { color: var(--blue); }
+.sc-step-title {
+  font-family: 'Syne', Georgia, serif;
+  font-weight: 700; font-size: 1.05rem;
+  color: var(--ink) !important; line-height: 1.2;
+}
+.sc-step-badge {
+  font-family: 'DM Mono', monospace; font-size: 0.65rem;
+  padding: 2px 7px; border-radius: var(--radius);
+  border: 1.5px solid; display: inline-block; margin-left: 0.4rem;
+}
+.sc-step-badge.inf { background: #e8eef8; color: var(--blue) !important; border-color: var(--blue); }
+.sc-step-badge.rev { background: #fdf9ec; color: #7a6020 !important; border-color: var(--mustard); }
+.sc-step-body { color: var(--ink) !important; font-size: 0.95rem; line-height: 1.65; margin-top: 0.6rem; }
+.sc-step-sep { border: none; border-top: 1px dashed var(--gray); margin: 0.8rem 0; }
+
+/* Evidence tags */
+.sc-ev {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  font-family: 'DM Mono', monospace; font-size: 0.7rem;
+  padding: 2px 8px; border-radius: var(--radius);
+  border: 1.5px solid; margin: 2px;
+}
+.sc-ev-t { background: #e8f5f0; color: var(--forest) !important; border-color: var(--forest); }
+.sc-ev-i { background: #e8eef8; color: #3a5a8a !important; border-color: var(--blue); }
+.sc-ev-m { background: #fdf9ec; color: #7a6020 !important; border-color: var(--mustard); }
+.sc-ev-x { background: #f5f0f8; color: #6a3a8a !important; border-color: #b07ad0; }
+
+/* Evidence status colours */
+.sc-ev-supported  { color: var(--forest) !important; }
+.sc-ev-partial    { color: #7a6020 !important; }
+.sc-ev-conflict   { color: #b03030 !important; }
+.sc-ev-insuf      { color: var(--gray) !important; }
+
+/* Checkpoint */
+.sc-checkpoint {
+  background: #e8f5f0; border: 1.5px solid var(--forest);
+  border-radius: var(--radius); padding: 0.5rem 0.9rem;
+  font-size: 0.88rem; color: var(--forest) !important;
+  display: flex; gap: 0.5rem; align-items: flex-start;
+  margin-top: 0.5rem;
+}
+.sc-checkpoint::before { content: "✓"; font-weight: 800; flex-shrink: 0; }
+
+/* Meta grid — missing info / contradictions / questions */
+.sc-meta-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: 1.5rem; }
+.sc-meta-box {
+  border: 1.5px solid var(--ink); border-radius: var(--radius);
+  padding: 1rem; background: white; box-shadow: var(--shadow);
+}
+.sc-meta-box-title {
+  font-family: 'DM Mono', monospace; font-size: 0.7rem;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  margin-bottom: 0.6rem; padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--ink);
+  color: var(--ink) !important;
+}
+.sc-meta-box ul { margin: 0; padding-left: 1.1rem; }
+.sc-meta-box li { font-size: 0.85rem; margin-bottom: 0.25rem; color: var(--ink) !important; }
+
+/* Checklist */
+.sc-checklist { list-style: none; padding: 0; margin: 0; }
+.sc-checklist li { padding: 0.4rem 0; border-bottom: 1px dashed var(--gray); font-size: 0.93rem; }
+.sc-checklist li:last-child { border-bottom: none; }
+
+/* Export area */
+.sc-export {
+  border: 2px solid var(--ink); border-radius: var(--radius);
+  background: var(--cream); padding: 1.5rem 2rem;
+  box-shadow: var(--shadow-lg); margin-top: 2rem;
+  display: flex; flex-direction: column; gap: 0.8rem;
+}
+.sc-export-title {
+  font-family: 'Syne', Georgia, serif; font-weight: 800;
+  font-size: 1rem; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--ink) !important; margin-bottom: 0.2rem;
+}
+
+/* Diagram section */
+.sc-diagram-wrap {
+  border: 2px solid var(--ink); border-radius: var(--radius);
+  background: white; padding: 1.5rem;
+  box-shadow: var(--shadow-lg);
+}
+
+/* OSS library row */
+.sc-oss-row {
+  display: flex; align-items: flex-start; gap: 0.8rem;
+  padding: 0.7rem 0; border-bottom: 1px dashed rgba(23,34,31,0.15);
+}
+.sc-oss-row:last-child { border-bottom: none; }
+.sc-oss-name { font-family: 'Syne', Georgia, serif; font-weight: 700;
+  color: var(--forest) !important; font-size: 0.95rem; }
+.sc-oss-desc { color: var(--ink) !important; font-size: 0.85rem; }
+.sc-oss-lic  { font-family: 'DM Mono', monospace; font-size: 0.68rem;
+  color: white !important; background: var(--forest);
+  border: 1px solid var(--ink); border-radius: var(--radius); padding: 1px 6px; }
+
+/* ── Streamlit widget overrides ── */
+
+/* Primary button — coral, hard offset shadow */
 .stButton > button[kind="primary"],
 button[data-testid="baseButton-primary"] {
-    background-color: #E53927 !important;
-    color: #F2F2EB !important;
-    border: 2px solid #671912 !important;
-    font-family: 'Barlow Semi Condensed', sans-serif !important;
-    font-weight: 700 !important;
-    font-size: 1.05rem !important;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    border-radius: 4px !important;
-    padding: 0.5rem 1.5rem !important;
-    transition: background 0.15s ease;
+  background: var(--coral) !important;
+  color: white !important;
+  border: 2px solid var(--ink) !important;
+  font-family: 'Syne', Georgia, serif !important;
+  font-weight: 800 !important;
+  font-size: 1.1rem !important;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border-radius: var(--radius) !important;
+  box-shadow: var(--shadow-lg) !important;
+  padding: 0.65rem 2rem !important;
+  transition: box-shadow 0.1s, transform 0.1s;
 }
-.stButton > button[kind="primary"]:hover,
-button[data-testid="baseButton-primary"]:hover {
-    background-color: #671912 !important;
+.stButton > button[kind="primary"]:hover {
+  background: #d45a47 !important;
+  box-shadow: 2px 2px 0 var(--ink) !important;
+  transform: translate(1px, 1px);
+}
+.stButton > button[kind="primary"]:disabled {
+  background: var(--gray) !important;
+  color: rgba(255,255,255,0.6) !important;
+  box-shadow: none !important;
+  transform: none !important;
+  border-color: var(--gray) !important;
+  cursor: not-allowed !important;
 }
 
-/* ── SECONDARY button ── */
-.stButton > button[kind="secondary"],
-button[data-testid="baseButton-secondary"] {
-    background-color: transparent !important;
-    color: #F2F2EB !important;
-    border: 2px solid #F2F2EB !important;
-    font-family: 'Barlow Semi Condensed', sans-serif !important;
-    font-weight: 600 !important;
-    text-transform: uppercase;
-    border-radius: 4px !important;
-    transition: border-color 0.15s ease;
+/* Secondary button */
+.stButton > button[kind="secondary"] {
+  background: transparent !important;
+  color: var(--ink) !important;
+  border: 2px solid var(--ink) !important;
+  font-family: 'DM Sans', sans-serif !important;
+  font-weight: 600 !important;
+  border-radius: var(--radius) !important;
+  box-shadow: var(--shadow) !important;
+  transition: box-shadow 0.1s, transform 0.1s;
 }
 .stButton > button[kind="secondary"]:hover {
-    border-color: #E53927 !important;
-    color: #E53927 !important;
+  background: var(--mustard) !important;
+  box-shadow: 1px 1px 0 var(--ink) !important;
+  transform: translate(1px, 1px);
 }
 
-/* ── Download button ── */
+/* Download button */
 .stDownloadButton > button {
-    background-color: #3D5F58 !important;
-    color: #F2F2EB !important;
-    border: 2px solid #F5B726 !important;
-    font-family: 'Barlow Semi Condensed', sans-serif !important;
-    font-weight: 700 !important;
-    text-transform: uppercase;
-    border-radius: 4px !important;
+  background: var(--forest) !important;
+  color: var(--cream) !important;
+  border: 2px solid var(--ink) !important;
+  font-family: 'DM Sans', sans-serif !important;
+  font-weight: 600 !important;
+  border-radius: var(--radius) !important;
+  box-shadow: var(--shadow) !important;
+  transition: box-shadow 0.1s, transform 0.1s;
 }
 .stDownloadButton > button:hover {
-    background-color: #F5B726 !important;
-    color: #231F20 !important;
+  background: #2a4640 !important;
+  box-shadow: 1px 1px 0 var(--ink) !important;
+  transform: translate(1px, 1px);
 }
 
-/* ── Expander — card style ── */
-details[data-testid="stExpander"],
-.streamlit-expanderHeader {
-    background-color: #243B36 !important;
-    border: 1.5px solid #3D5F58 !important;
-    border-radius: 6px !important;
-    margin-bottom: 0.6rem;
+/* File uploader — cream bg, dark border */
+[data-testid="stFileUploader"] {
+  background: var(--cream) !important;
+  border: 1.5px dashed var(--ink) !important;
+  border-radius: var(--radius) !important;
+  padding: 0.4rem !important;
+}
+[data-testid="stFileUploader"]:hover { border-color: var(--coral) !important; }
+[data-testid="stFileUploader"] label p { color: var(--ink) !important; font-size: 0.88rem !important; }
+[data-testid="stFileUploaderDropzone"] { background: transparent !important; }
+
+/* Expander */
+details[data-testid="stExpander"] {
+  border: 1.5px solid rgba(23,34,31,0.18) !important;
+  border-radius: var(--radius) !important;
+  background: white !important;
+  margin-bottom: 0.5rem;
 }
 .streamlit-expanderHeader p {
-    font-family: 'Barlow Semi Condensed', sans-serif !important;
-    font-weight: 600 !important;
-    font-size: 1.0rem !important;
-    color: #F2F2EB !important;
+  font-family: 'DM Sans', sans-serif !important;
+  font-weight: 600 !important; font-size: 0.92rem !important;
+  color: var(--ink) !important;
 }
 details[data-testid="stExpander"] > div {
-    background-color: #243B36 !important;
-    border-top: 1px dashed #3D5F58 !important;
-    padding: 0.8rem 1rem !important;
+  background: white !important;
+  border-top: 1px dashed rgba(23,34,31,0.15) !important;
 }
 
-/* ── Tabs ── */
+/* Tabs */
+div[data-baseweb="tab-list"] {
+  background: transparent !important;
+  border-bottom: 2px solid var(--ink) !important;
+  gap: 0;
+}
 button[data-baseweb="tab"] {
-    font-family: 'Barlow Semi Condensed', sans-serif !important;
-    font-weight: 600 !important;
-    font-size: 0.97rem !important;
-    color: #8BB2DE !important;
-    border-bottom: 2px solid transparent !important;
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
+  font-family: 'DM Sans', sans-serif !important;
+  font-weight: 600 !important; font-size: 0.9rem !important;
+  color: var(--gray) !important;
+  border-bottom: 3px solid transparent !important;
+  background: transparent !important;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  padding: 0.5rem 1.2rem !important;
 }
 button[data-baseweb="tab"][aria-selected="true"] {
-    color: #E53927 !important;
-    border-bottom: 2px solid #E53927 !important;
-}
-div[data-baseweb="tab-list"] {
-    background-color: #243B36 !important;
-    border-bottom: 1px solid #3D5F58 !important;
-    gap: 0;
+  color: var(--ink) !important;
+  border-bottom: 3px solid var(--coral) !important;
 }
 div[data-baseweb="tab-panel"] {
-    background-color: #243B36 !important;
-    border: 1px solid #3D5F58 !important;
-    border-top: none !important;
-    padding: 1rem !important;
+  background: white !important;
+  border: 1.5px solid rgba(23,34,31,0.18) !important;
+  border-top: none !important;
+  padding: 1.2rem !important;
 }
 
-/* ── File uploader ── */
-[data-testid="stFileUploader"] {
-    background-color: #243B36 !important;
-    border: 2px dashed #3D5F58 !important;
-    border-radius: 6px !important;
-    padding: 0.5rem;
-}
-[data-testid="stFileUploader"]:hover {
-    border-color: #E53927 !important;
-}
-
-/* ── Status boxes (success / info / warning / error) ── */
-[data-testid="stAlert"][data-baseweb="notification"][kind="success"],
+/* Alert / status boxes */
 div[data-testid="stSuccessMessage"] {
-    background-color: #1e3d30 !important;
-    border-left: 4px solid #3D5F58 !important;
-    color: #F2F2EB !important;
+  background: #e8f5f0 !important; border-left: 4px solid var(--forest) !important;
+  color: var(--ink) !important;
 }
-[data-testid="stAlert"][kind="warning"],
 div[data-testid="stWarningMessage"] {
-    background-color: #3d3410 !important;
-    border-left: 4px solid #F5B726 !important;
-    color: #F2F2EB !important;
+  background: #fdf9ec !important; border-left: 4px solid var(--mustard) !important;
+  color: var(--ink) !important;
 }
-[data-testid="stAlert"][kind="error"],
 div[data-testid="stErrorMessage"] {
-    background-color: #3d1010 !important;
-    border-left: 4px solid #E53927 !important;
-    color: #F2F2EB !important;
+  background: #fceae7 !important; border-left: 4px solid var(--coral) !important;
+  color: var(--ink) !important;
 }
-[data-testid="stAlert"][kind="info"],
 div[data-testid="stInfoMessage"] {
-    background-color: #1a2f3f !important;
-    border-left: 4px solid #8BB2DE !important;
-    color: #F2F2EB !important;
+  background: #edf2fb !important; border-left: 4px solid var(--blue) !important;
+  color: var(--ink) !important;
 }
-
-/* ── st.status (processing steps) ── */
 [data-testid="stStatusWidget"] {
-    background-color: #243B36 !important;
-    border: 1px solid #3D5F58 !important;
-    border-radius: 6px !important;
-    color: #F2F2EB !important;
+  background: white !important; border: 1.5px solid var(--ink) !important;
+  border-radius: var(--radius) !important;
 }
 
-/* ── Code blocks ── */
+/* Code */
 code, pre {
-    font-family: 'Martian Mono', monospace !important;
-    background-color: #1a2d29 !important;
-    color: #F5B726 !important;
-    border-radius: 3px;
-    font-size: 0.82rem !important;
+  font-family: 'DM Mono', monospace !important;
+  background: #f0ede0 !important;
+  color: var(--forest) !important;
+  border-radius: var(--radius);
+  font-size: 0.82rem !important;
 }
 
-/* ── Checkbox ── */
-label[data-testid="stWidgetLabel"] span {
-    color: #F2F2EB !important;
-}
-input[type="checkbox"] {
-    accent-color: #E53927;
-}
+/* Checkbox */
+input[type="checkbox"] { accent-color: var(--forest); }
+label[data-testid="stWidgetLabel"] span { color: var(--ink) !important; }
 
-/* ── Selectbox / radio ── */
-[data-testid="stSelectbox"] select,
-[data-testid="stRadio"] {
-    background-color: #243B36 !important;
-    color: #F2F2EB !important;
-    border: 1px solid #3D5F58 !important;
-}
-
-/* ── Metric boxes ── */
-[data-testid="stMetricValue"] {
-    color: #E53927 !important;
-    font-family: 'Barlow Semi Condensed', sans-serif !important;
-    font-weight: 800 !important;
-}
-
-/* ── Thumbnail image captions ── */
-[data-testid="stImageCaption"] {
-    color: #8BB2DE !important;
-    font-size: 0.75rem !important;
-}
-
-/* ── Scrollbar ── */
+/* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #2E4742; }
-::-webkit-scrollbar-thumb { background: #3D5F58; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #E53927; }
+::-webkit-scrollbar-track { background: var(--cream); }
+::-webkit-scrollbar-thumb { background: var(--gray); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--coral); }
 
-/* ── Hero banner (top of page) ── */
-.hf-hero {
-    background: linear-gradient(135deg, #231F20 0%, #2E4742 60%);
-    border: 2px solid #3D5F58;
-    border-radius: 8px;
-    padding: 2rem 2.5rem 1.5rem;
-    margin-bottom: 1.5rem;
-    position: relative;
-    overflow: hidden;
-}
-.hf-hero::before {
-    content: "";
-    position: absolute;
-    top: 0; left: 0;
-    width: 6px; height: 100%;
-    background: #E53927;
-}
-.hf-hero h1 {
-    margin: 0 0 0.3rem 0;
-    font-size: 2.4rem !important;
-    color: #F2F2EB !important;
-}
-.hf-hero h1 span { color: #E53927; }
-.hf-hero p {
-    margin: 0;
-    color: #8BB2DE !important;
-    font-size: 0.95rem;
-}
+/* Image captions */
+[data-testid="stImageCaption"] { color: var(--gray) !important; font-size: 0.72rem !important; }
 
-/* ── Section card ── */
-.hf-card {
-    background-color: #243B36;
-    border: 1.5px solid #3D5F58;
-    border-radius: 6px;
-    padding: 1.2rem 1.4rem;
-    margin-bottom: 1rem;
-}
-
-/* ── Tag / badge pill ── */
-.hf-tag {
-    display: inline-block;
-    background-color: #3D5F58;
-    color: #F5B726;
-    font-family: 'Martian Mono', monospace;
-    font-size: 0.72rem;
-    font-weight: 600;
-    padding: 2px 8px;
-    border-radius: 3px;
-    border: 1px solid #F5B726;
-    margin-right: 4px;
-    letter-spacing: 0.3px;
-}
-.hf-tag-red  { background-color: #671912; color: #F2F2EB; border-color: #E53927; }
-.hf-tag-blue { background-color: #1a2f3f; color: #8BB2DE; border-color: #8BB2DE; }
-
-/* ── OSS library row ── */
-.oss-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.8rem;
-    padding: 0.6rem 0;
-    border-bottom: 1px dashed #3D5F58;
-}
-.oss-row:last-child { border-bottom: none; }
-.oss-name {
-    font-family: 'Barlow Semi Condensed', sans-serif;
-    font-weight: 700;
-    color: #F5B726;
-    font-size: 1rem;
-}
-.oss-desc { color: #F2F2EB; font-size: 0.88rem; }
-.oss-lic {
-    font-family: 'Martian Mono', monospace;
-    font-size: 0.72rem;
-    color: #8BB2DE;
-}
-
-/* ── Step card ── */
-.step-number {
-    font-family: 'Barlow Semi Condensed', sans-serif;
-    font-weight: 800;
-    font-size: 1.4rem;
-    color: #E53927;
-    min-width: 2rem;
+/* Responsive — tighter padding on narrow screens */
+@media (max-width: 768px) {
+  .sc-nav { margin: -1rem -1rem 0; padding: 0.7rem 1rem; }
+  .sc-hero { margin: 0 -1rem 0; padding: 2rem 1.2rem; }
+  .sc-hero h1 { font-size: 2.1rem !important; }
+  .sc-meta-grid { grid-template-columns: 1fr; }
+  .sc-nav-links { display: none; }
+  .block-container { padding-bottom: 2rem; }
 }
 </style>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# Imports
+# Imports  (after st.set_page_config + CSS)
 # ---------------------------------------------------------------------------
 from skillcapture.transcribe import (
     get_whisper_model,
@@ -442,12 +751,9 @@ from skillcapture.validate_procedure import validate_procedure, validate_graph
 
 # ---------------------------------------------------------------------------
 # Cached resource initialisation
-# These run once per server process and are reused across all reruns.
 # ---------------------------------------------------------------------------
-
 @st.cache_resource(show_spinner=False)
 def _load_whisper_model():
-    """Load faster-whisper base model once. Cached for the process lifetime."""
     try:
         model, init_seconds = get_whisper_model()
         return model, init_seconds, None
@@ -457,7 +763,6 @@ def _load_whisper_model():
 
 @st.cache_resource(show_spinner=False)
 def _load_docling_converter():
-    """Build Docling DocumentConverter once. Cached for the process lifetime."""
     try:
         converter, init_seconds = get_docling_converter()
         return converter, init_seconds, None
@@ -466,20 +771,10 @@ def _load_docling_converter():
 
 
 # ---------------------------------------------------------------------------
-# Cached processing functions
-# Cache keys are content-based (SHA-256) so replacing a file invalidates
-# the cache automatically. No sensitive data is used as a cache key.
+# Cached processing  (content-hash keyed — safe across reruns)
 # ---------------------------------------------------------------------------
-
 @st.cache_data(show_spinner=False)
 def _cached_transcribe(audio_sha256: str, audio_bytes: bytes) -> dict:
-    """
-    Transcribe audio. Cached by content hash.
-    Re-runs only when the audio file content actually changes.
-    audio_sha256 is included explicitly so Streamlit uses it as the cache key
-    even though audio_bytes would also differ — this avoids hashing large
-    byte arrays twice.
-    """
     whisper_model, _init_secs, model_error = _load_whisper_model()
     if model_error:
         return {
@@ -491,108 +786,90 @@ def _cached_transcribe(audio_sha256: str, audio_bytes: bytes) -> dict:
 
 
 @st.cache_data(show_spinner=False)
-def _cached_extract_pdf(pdf_sha256: str, pdf_bytes: bytes,
-                        filename: str) -> dict:
-    """
-    Extract PDF. Cached by content hash.
-    Re-runs only when the PDF file content actually changes.
-    """
+def _cached_extract_pdf(pdf_sha256: str, pdf_bytes: bytes, filename: str) -> dict:
     converter, _init_secs, conv_error = _load_docling_converter()
-    # conv_error is non-fatal: extract_pdf falls back to pypdf automatically
     return extract_pdf(pdf_bytes, filename,
                        converter=converter if not conv_error else None)
 
 
 # ---------------------------------------------------------------------------
-# Session-state initialisation
-# Guard: only set keys that don't exist yet — safe to call on every rerun.
+# Session-state initialisation  (guard — safe to call on every rerun)
 # ---------------------------------------------------------------------------
 _DEFAULTS: dict = {
-    "procedure":            None,   # validated Procedure object
-    "transcript":           None,   # dict from transcribe_audio_with_model
-    "pdf_result":           None,   # dict from extract_pdf
-    "image_data":           None,   # list[(filename, bytes)]
-    "processing_done":      False,  # True once a full successful run completed
-    "error_msg":            None,   # last fatal error string
-    "timings":              {},     # stage → elapsed seconds
-    "validation_warnings":  [],     # post-generation validation messages
+    "procedure":           None,
+    "transcript":          None,
+    "pdf_result":          None,
+    "image_data":          None,
+    "processing_done":     False,
+    "error_msg":           None,
+    "timings":             {},
+    "validation_warnings": [],
 }
 for _k, _v in _DEFAULTS.items():
     if _k not in st.session_state:
         st.session_state[_k] = _v
 
 # ---------------------------------------------------------------------------
-# Hero banner
+# SIDEBAR
 # ---------------------------------------------------------------------------
-st.markdown(
-    """
-<div class="hf-hero">
-  <h1>SKILL<span>CAPTURE</span></h1>
-  <p>Turn a spoken demonstration + photos + an optional manual into a
-  structured, evidence-linked procedure — powered by Gemma&nbsp;4.</p>
-</div>
-""",
-    unsafe_allow_html=True,
-)
+REPO_URL = "https://github.com/udaybaheti22/hacktober-Uday"
 
-# ---------------------------------------------------------------------------
-# Sidebar
-# ---------------------------------------------------------------------------
 with st.sidebar:
-    st.markdown(
-        """
-<div style="padding:0.5rem 0 1rem;">
-  <div style="font-family:'Barlow Semi Condensed',sans-serif;font-weight:800;
-              font-size:1.3rem;color:#F2F2EB;text-transform:uppercase;
-              letter-spacing:1px;">
-    SKILL<span style="color:#E53927;">CAPTURE</span>
+    st.markdown("""
+<div style="padding:0.6rem 0 1.2rem;">
+  <div style="font-family:'Syne',Georgia,serif;font-weight:800;font-size:1.25rem;
+              color:#F5F3E8;text-transform:uppercase;letter-spacing:-0.02em;">
+    Skill<span style="color:#E76F5A;">Capture</span>
   </div>
-  <div style="font-size:0.75rem;color:#8BB2DE;margin-top:2px;">
-    Hacktoberfest × MOSS Hack Day Udupi 2026
+  <div style="font-size:0.72rem;color:#BACBC3;margin-top:3px;
+              font-family:'DM Mono',monospace;">
+    Multimodal knowledge tool
   </div>
 </div>
-""",
-        unsafe_allow_html=True,
-    )
-    st.divider()
+""", unsafe_allow_html=True)
 
-    st.markdown("**🤖 Model**")
+    st.divider()
+    st.markdown("**Model**")
     st.code(GEMMA_MODEL, language=None)
     st.markdown(
-        "<span style='font-size:0.8rem;color:#8BB2DE;'>"
-        "Gemma 4 via Gemini API · Google AI Studio</span>",
+        "<span style='font-size:0.78rem;color:#BACBC3;font-family:DM Mono,monospace;'>"
+        "Gemma 4 · Gemini API</span>",
         unsafe_allow_html=True,
     )
-    st.markdown("**🎙 Audio** · faster-whisper base int8")
-    st.markdown("**📄 PDF** · Docling → pypdf fallback")
+    st.markdown(
+        "<div style='font-size:0.82rem;margin-top:0.7rem;'>"
+        "<b>Audio</b> · faster-whisper base<br>"
+        "<b>PDF</b> · Docling → pypdf fallback</div>",
+        unsafe_allow_html=True,
+    )
     st.divider()
 
     if os.getenv("GEMINI_API_KEY"):
         st.markdown(
-            "<span class='hf-tag'>API KEY ✓</span>",
+            "<span style='background:#36564F;color:#F5F3E8;font-family:DM Mono,monospace;"
+            "font-size:0.72rem;padding:3px 10px;border:1.5px solid #F5F3E8;"
+            "border-radius:4px;'>API KEY ✓</span>",
             unsafe_allow_html=True,
         )
     else:
-        st.error("GEMINI_API_KEY not set — add it to .env")
+        st.error("GEMINI_API_KEY not set")
 
-    # Timings diagnostic
     if st.session_state["processing_done"] and st.session_state["timings"]:
         st.divider()
-        st.markdown("**⏱ Stage timings**")
+        st.markdown("**Stage timings**")
         for stage, secs in st.session_state["timings"].items():
             st.markdown(
                 f"<div style='display:flex;justify-content:space-between;"
-                f"font-size:0.82rem;padding:2px 0;'>"
-                f"<span style='color:#8BB2DE;'>{stage}</span>"
-                f"<span style='font-family:Martian Mono,monospace;color:#F5B726;'>"
+                f"font-size:0.8rem;padding:2px 0;border-bottom:1px dashed rgba(186,203,195,0.3);'>"
+                f"<span style='color:#BACBC3;'>{stage}</span>"
+                f"<span style='font-family:DM Mono,monospace;color:#F3C64E;'>"
                 f"{secs:.2f}s</span></div>",
                 unsafe_allow_html=True,
             )
 
-    # Reset action
     if st.session_state["processing_done"]:
         st.divider()
-        if st.button("🔄 Start new procedure", key="btn_reset",
+        if st.button("Start new procedure", key="btn_reset",
                      use_container_width=True):
             for _k, _v in _DEFAULTS.items():
                 st.session_state[_k] = _v
@@ -600,109 +877,166 @@ with st.sidebar:
 
     st.divider()
     st.markdown(
-        "<div style='font-size:0.75rem;color:#3D5F58;'>MIT License · "
-        "<a href='https://github.com/udaybaheti22/hacktober-Uday' "
-        "style='color:#3D5F58;'>GitHub</a></div>",
+        f"<div style='font-size:0.72rem;color:rgba(186,203,195,0.6);'>"
+        f"MIT License · "
+        f"<a href='{REPO_URL}' style='color:#91B0DF;'>GitHub</a></div>",
         unsafe_allow_html=True,
     )
 
 # ---------------------------------------------------------------------------
-# Input section
+# TOP NAVIGATION BAR
 # ---------------------------------------------------------------------------
-col_left, col_right = st.columns([1, 1], gap="large")
+st.markdown(f"""
+<div class="sc-nav">
+  <div>
+    <div class="sc-nav-logo">Skill<span>Capture</span></div>
+    <div class="sc-nav-sub">Turn demonstrations into reusable knowledge.</div>
+  </div>
+  <div class="sc-nav-links">
+    <a href="#how-it-works">How it works</a>
+    <a href="{REPO_URL}" target="_blank" class="sc-nav-badge">Open source</a>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
-with col_left:
-    st.markdown(
-        "<h3 style='margin-bottom:0.8rem;'>01 &nbsp;Upload inputs</h3>",
-        unsafe_allow_html=True,
-    )
+# ---------------------------------------------------------------------------
+# HERO SECTION
+# ---------------------------------------------------------------------------
+st.markdown("""
+<div class="sc-hero">
+  <div class="sc-hero-eyebrow">Multimodal Knowledge Tool</div>
+  <h1>Turn demonstrations<br>into <em>instructions.</em></h1>
+  <p class="sc-hero-body">
+    SkillCapture combines a spoken explanation, step photographs, and a
+    reference manual into an evidence-linked procedure — with source citations,
+    uncertainty flags, and a Mermaid workflow diagram.
+  </p>
+  <div class="sc-tech-row">
+    <span class="sc-tech-pill"><span class="dot"></span>Gemma&nbsp;4</span>
+    <span class="sc-tech-pill"><span class="dot"></span>Whisper</span>
+    <span class="sc-tech-pill"><span class="dot"></span>Docling</span>
+    <span class="sc-tech-pill"><span class="dot"></span>Pydantic</span>
+    <span class="sc-tech-pill"><span class="dot"></span>Mermaid</span>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
+# ---------------------------------------------------------------------------
+# INPUT WORKSPACE  — "Build a procedure"
+# ---------------------------------------------------------------------------
+st.markdown("""
+<div style="margin-top:2.5rem;margin-bottom:0.5rem;">
+  <div style="font-family:'DM Mono',monospace;font-size:0.7rem;
+              text-transform:uppercase;letter-spacing:0.12em;color:#BACBC3;
+              margin-bottom:0.3rem;">Section 01</div>
+  <h2 style="margin:0 0 0.2rem;">Build a procedure.</h2>
+  <p style="color:#BACBC3;font-size:0.9rem;margin:0 0 1.5rem;">
+    Provide your demonstration materials below. All processing runs locally
+    — your files never leave this machine except for the Gemini API call.
+  </p>
+</div>
+""", unsafe_allow_html=True)
+
+c1, c2, c3 = st.columns(3, gap="medium")
+
+with c1:
+    st.markdown("""
+<div class="sc-input-card">
+  <div class="sc-input-card-icon">🎙</div>
+  <div class="sc-input-card-title">Audio Recording</div>
+  <div class="sc-input-card-sub">MP3 · WAV · M4A · OGG · FLAC · WebM · AAC</div>
+</div>
+""", unsafe_allow_html=True)
     audio_file = st.file_uploader(
-        "🎙️ Audio recording (required)",
+        "Upload audio",
         type=["mp3", "wav", "m4a", "ogg", "flac", "webm", "aac"],
-        help="Upload a recording of someone explaining or demonstrating the process.",
+        help="A recording of someone explaining or demonstrating the process.",
         key="uploader_audio",
+        label_visibility="collapsed",
     )
+    if audio_file:
+        st.markdown(
+            f"<div class='sc-file-pill'>🎵 {audio_file.name}"
+            f"<span class='sz'>{_fmt_size(audio_file.size)}</span></div>"
+            f"<span class='sc-status sc-status-ready'>READY</span>",
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            "<span class='sc-status sc-status-empty'>AWAITING UPLOAD</span>",
+            unsafe_allow_html=True,
+        )
 
+with c2:
+    st.markdown("""
+<div class="sc-input-card">
+  <div class="sc-input-card-icon">📷</div>
+  <div class="sc-input-card-title">Step Photographs</div>
+  <div class="sc-input-card-sub">3–8 images · JPG · PNG · WebP · BMP</div>
+</div>
+""", unsafe_allow_html=True)
     image_files = st.file_uploader(
-        "📷 Step photographs (3–8 images, required)",
+        "Upload photos",
         type=["jpg", "jpeg", "png", "webp", "bmp"],
         accept_multiple_files=True,
         help="Upload photos showing the key steps of the process.",
         key="uploader_images",
+        label_visibility="collapsed",
     )
-
-    pdf_file = st.file_uploader(
-        "📄 Reference manual PDF (optional)",
-        type=["pdf"],
-        help="Upload a supporting manual or instructions document.",
-        key="uploader_pdf",
-    )
-
-with col_right:
-    st.markdown(
-        "<h3 style='margin-bottom:0.8rem;'>02 &nbsp;Uploaded files</h3>",
-        unsafe_allow_html=True,
-    )
-
-    if audio_file:
-        st.markdown(
-            f"<div class='hf-card' style='border-color:#3D5F58;'>"
-            f"🎙️ <strong>{audio_file.name}</strong> &nbsp;"
-            f"<span class='hf-tag'>{_fmt_size(audio_file.size)}</span></div>",
-            unsafe_allow_html=True,
-        )
-    else:
-        st.markdown(
-            "<div style='color:#8BB2DE;font-size:0.88rem;padding:0.4rem 0;'>"
-            "No audio uploaded yet.</div>",
-            unsafe_allow_html=True,
-        )
-
     if image_files:
         valid_images = [f for f in image_files if f is not None]
-        if len(valid_images) < 3:
-            st.warning(f"⚠️ {len(valid_images)} image(s) — at least 3 recommended.")
-        elif len(valid_images) > 8:
-            st.warning(f"⚠️ {len(valid_images)} images — maximum 8 will be sent.")
+        if len(valid_images) > 8:
+            st.warning(f"Maximum 8 images — only first 8 will be sent.")
             valid_images = valid_images[:8]
-        else:
-            st.markdown(
-                f"<div class='hf-card' style='border-color:#3D5F58;'>"
-                f"📷 <strong>{len(valid_images)} image(s) ready</strong></div>",
-                unsafe_allow_html=True,
-            )
-
-        thumb_cols = st.columns(min(4, len(valid_images)))
-        for i, img in enumerate(valid_images[:4]):
-            with thumb_cols[i]:
-                st.image(img, caption=img.name, use_container_width=True)
+        n = len(valid_images)
+        status_cls = "sc-status-ready" if n >= 3 else "sc-status-opt"
+        status_txt = f"{n} IMAGE{'S' if n != 1 else ''} READY" if n >= 3 else f"{n} IMAGE{'S' if n != 1 else ''} — 3 MIN."
+        st.markdown(
+            f"<span class='sc-status {status_cls}'>{status_txt}</span>",
+            unsafe_allow_html=True,
+        )
+        if n > 0:
+            thumb_cols = st.columns(min(4, n))
+            for i, img in enumerate(valid_images[:4]):
+                with thumb_cols[i]:
+                    st.image(img, caption=img.name, use_container_width=True)
     else:
         valid_images = []
         st.markdown(
-            "<div style='color:#8BB2DE;font-size:0.88rem;padding:0.4rem 0;'>"
-            "No images uploaded yet.</div>",
+            "<span class='sc-status sc-status-empty'>AWAITING UPLOAD</span>",
             unsafe_allow_html=True,
         )
 
+with c3:
+    st.markdown("""
+<div class="sc-input-card">
+  <div class="sc-input-card-icon">📄</div>
+  <div class="sc-input-card-title">Reference Manual</div>
+  <div class="sc-input-card-sub">PDF · optional</div>
+</div>
+""", unsafe_allow_html=True)
+    pdf_file = st.file_uploader(
+        "Upload PDF",
+        type=["pdf"],
+        help="Upload a supporting manual or instructions document.",
+        key="uploader_pdf",
+        label_visibility="collapsed",
+    )
     if pdf_file:
         st.markdown(
-            f"<div class='hf-card' style='border-color:#3D5F58;'>"
-            f"📄 <strong>{pdf_file.name}</strong> &nbsp;"
-            f"<span class='hf-tag'>{_fmt_size(pdf_file.size)}</span></div>",
+            f"<div class='sc-file-pill'>📄 {pdf_file.name}"
+            f"<span class='sz'>{_fmt_size(pdf_file.size)}</span></div>"
+            f"<span class='sc-status sc-status-ready'>READY</span>",
             unsafe_allow_html=True,
         )
     else:
         st.markdown(
-            "<div style='color:#8BB2DE;font-size:0.88rem;padding:0.4rem 0;'>"
-            "No PDF uploaded <em>(optional)</em>.</div>",
+            "<span class='sc-status sc-status-opt'>OPTIONAL</span>",
             unsafe_allow_html=True,
         )
 
-st.divider()
-
 # ---------------------------------------------------------------------------
-# Generate button
+# GENERATE CTA
 # ---------------------------------------------------------------------------
 can_generate = (
     audio_file is not None
@@ -710,60 +1044,98 @@ can_generate = (
     and not st.session_state["processing_done"]
 )
 
-if not st.session_state["processing_done"] and not can_generate:
-    st.markdown(
-        "<div style='text-align:center;color:#8BB2DE;font-size:0.9rem;"
-        "padding:0.6rem;border:1.5px dashed #3D5F58;border-radius:6px;"
-        "margin-bottom:0.5rem;'>"
-        "Upload at least an audio file and one image to generate a procedure.</div>",
-        unsafe_allow_html=True,
+st.markdown("<div style='height:1.5rem;'></div>", unsafe_allow_html=True)
+
+cta_col, info_col = st.columns([2, 3], gap="large")
+
+with cta_col:
+    st.markdown("""
+<div class="sc-cta-wrap">
+  <p class="sc-cta-prompt">
+    Upload an audio recording and at least one photograph to generate
+    a structured, evidence-linked procedure.
+  </p>
+  <div class="sc-pipeline">
+    <span class="sc-pipeline-step">Whisper transcription</span>
+    <span class="sc-pipeline-arrow">→</span>
+    <span class="sc-pipeline-step">Docling extraction</span>
+    <span class="sc-pipeline-arrow">→</span>
+    <span class="sc-pipeline-step">Gemma 4 synthesis</span>
+    <span class="sc-pipeline-arrow">→</span>
+    <span class="sc-pipeline-step">Pydantic validation</span>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+    if not can_generate and not st.session_state["processing_done"]:
+        st.markdown(
+            "<div style='font-family:DM Mono,monospace;font-size:0.78rem;"
+            "color:#BACBC3;margin-top:0.4rem;'>Awaiting required inputs.</div>",
+            unsafe_allow_html=True,
+        )
+    generate_btn = st.button(
+        "Generate procedure",
+        disabled=not can_generate,
+        type="primary",
+        use_container_width=True,
+        key="btn_generate",
     )
 
-generate_btn = st.button(
-    "⚙️ Generate Procedure",
-    disabled=not can_generate,
-    type="primary",
-    use_container_width=True,
-    key="btn_generate",
-)
+with info_col:
+    st.markdown("""
+<div style="padding:1.2rem 0;">
+  <div style="font-family:'DM Mono',monospace;font-size:0.7rem;
+              text-transform:uppercase;letter-spacing:0.1em;color:#BACBC3;
+              margin-bottom:0.8rem;" id="how-it-works">How it works</div>
+  <ol style="margin:0;padding-left:1.2rem;color:#17221F;">
+    <li style="margin-bottom:0.45rem;font-size:0.88rem;">
+      <strong>faster-whisper</strong> transcribes your audio locally with
+      timestamps — no data sent to a remote speech API.
+    </li>
+    <li style="margin-bottom:0.45rem;font-size:0.88rem;">
+      <strong>Docling</strong> extracts structured text from your PDF, preserving
+      page references for evidence attribution.
+    </li>
+    <li style="margin-bottom:0.45rem;font-size:0.88rem;">
+      <strong>Gemma 4</strong> receives all three sources — transcript, photographs,
+      and manual — in a single multimodal prompt and performs cross-modal
+      evidence reconciliation.
+    </li>
+    <li style="font-size:0.88rem;">
+      <strong>Pydantic</strong> validates the structured JSON output against a
+      defined schema before anything is displayed.
+    </li>
+  </ol>
+</div>
+""", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# Processing — runs ONLY on explicit button click.
-# Uses @st.cache_data wrappers for audio and PDF so unchanged files reuse
-# prior results. Gemma 4 is called once and stored in session_state.
+# PROCESSING PIPELINE
 # ---------------------------------------------------------------------------
 if generate_btn and can_generate:
     st.session_state["error_msg"] = None
     timings: dict[str, float] = {}
     run_start = time.perf_counter()
 
-    # ── Stage 1: Audio transcription ────────────────────────────────────────
-    with st.status("🎙️ Transcribing audio…", expanded=True) as status:
+    with st.status("Transcribing audio with Whisper…", expanded=True) as status:
         audio_bytes = audio_file.read()
         audio_hash  = _sha256(audio_bytes)
-        st.write(f"Audio: {audio_file.name} · {_fmt_size(len(audio_bytes))} "
-                 f"· hash `{audio_hash[:8]}…`")
-
+        st.write(f"{audio_file.name} · {_fmt_size(len(audio_bytes))} · `{audio_hash[:8]}…`")
         t0 = time.perf_counter()
         transcript_result = _cached_transcribe(audio_hash, audio_bytes)
         wall = time.perf_counter() - t0
-
         if transcript_result["error"]:
-            status.update(label="❌ Transcription failed", state="error")
+            status.update(label="Transcription failed", state="error")
             st.error(transcript_result["error"])
             st.session_state["error_msg"] = transcript_result["error"]
             st.stop()
-
-        word_count = len(transcript_result["transcript"].split())
-        seg_count  = len(transcript_result["segments"])
+        wc = len(transcript_result["transcript"].split())
+        sc = len(transcript_result["segments"])
         cached_note = " (cached)" if wall < 0.05 else ""
-        timings["Audio decode"]    = transcript_result["decode_seconds"]
+        timings["Audio decode"]      = transcript_result["decode_seconds"]
         timings["Whisper inference"] = transcript_result["transcribe_seconds"]
         status.update(
-            label=(
-                f"✅ Transcribed — {word_count} words, {seg_count} segments"
-                f" · {transcript_result['transcribe_seconds']:.1f}s{cached_note}"
-            ),
+            label=f"Whisper — {wc} words, {sc} segments"
+                  f" · {transcript_result['transcribe_seconds']:.1f}s{cached_note}",
             state="complete",
         )
         with st.expander("View transcript", expanded=False):
@@ -772,38 +1144,30 @@ if generate_btn and can_generate:
                 or transcript_result["transcript"]
             )
 
-    # ── Stage 2: PDF extraction ──────────────────────────────────────────────
     if pdf_file:
-        with st.status("📄 Extracting PDF…", expanded=True) as status:
+        with st.status("Extracting PDF with Docling…", expanded=True) as status:
             pdf_bytes = pdf_file.read()
             pdf_hash  = _sha256(pdf_bytes)
-            st.write(f"PDF: {pdf_file.name} · hash `{pdf_hash[:8]}…`")
-
+            st.write(f"{pdf_file.name} · `{pdf_hash[:8]}…`")
             t0 = time.perf_counter()
             pdf_result = _cached_extract_pdf(pdf_hash, pdf_bytes, pdf_file.name)
             wall = time.perf_counter() - t0
-
             if pdf_result["error"]:
-                status.update(label="❌ PDF extraction failed", state="error")
+                status.update(label="PDF extraction failed", state="error")
                 st.error(pdf_result["error"])
                 st.session_state["error_msg"] = pdf_result["error"]
                 st.stop()
-
-            extractor_label = pdf_result["extractor"]
-            page_count      = len(pdf_result["pages"])
             cached_note = " (cached)" if wall < 0.05 else ""
             timings["PDF extraction"] = pdf_result["extract_seconds"]
             status.update(
-                label=(
-                    f"✅ Extracted {page_count} page(s) via {extractor_label}"
-                    f" · {pdf_result['extract_seconds']:.1f}s{cached_note}"
-                ),
+                label=f"Docling — {len(pdf_result['pages'])} page(s)"
+                      f" via {pdf_result['extractor']}"
+                      f" · {pdf_result['extract_seconds']:.1f}s{cached_note}",
                 state="complete",
             )
             if pdf_result["warning"]:
                 st.warning(pdf_result["warning"])
-            with st.expander("View extracted text (first 1000 chars)",
-                             expanded=False):
+            with st.expander("View extracted text (first 1 000 chars)", expanded=False):
                 st.text(pdf_result["text"][:1000])
     else:
         pdf_result = {
@@ -811,19 +1175,15 @@ if generate_btn and can_generate:
             "extract_seconds": 0.0, "warning": None, "error": None,
         }
 
-    # ── Stage 3: Read image bytes ────────────────────────────────────────────
     image_data: list[tuple[str, bytes]] = []
     for img_file in valid_images[:8]:
         img_file.seek(0)
         image_data.append((img_file.name, img_file.read()))
 
-    # ── Stage 4: Gemma 4 synthesis ───────────────────────────────────────────
-    with st.status(
-        f"🤖 Synthesising procedure with {GEMMA_MODEL}…", expanded=True
-    ) as status:
+    with st.status(f"Synthesising with {GEMMA_MODEL}…", expanded=True) as status:
         st.write(
-            f"Sending {len(image_data)} image(s), transcript, and "
-            f"{'manual' if pdf_file else 'no manual'} to Gemma 4…"
+            f"Sending {len(image_data)} image(s), transcript, "
+            f"and {'manual' if pdf_file else 'no manual'} to Gemma 4."
         )
         t0 = time.perf_counter()
         try:
@@ -838,204 +1198,270 @@ if generate_btn and can_generate:
             timings["Gemma 4 API"] = gemma_seconds
             timings["Total"] = time.perf_counter() - run_start
 
-            # ── Post-generation deterministic validation ──────────────────
             supplied_image_ids = {fname for fname, _ in image_data}
             proc_errors  = validate_procedure(procedure, supplied_image_ids)
             graph_errors = validate_graph(procedure)
             all_errors   = proc_errors + graph_errors
 
             status.update(
-                label=(
-                    f"✅ Procedure generated — {len(procedure.steps)} step(s)"
-                    f" · {gemma_seconds:.1f}s"
-                    + (f" · {len(all_errors)} validation warning(s)" if all_errors else "")
-                ),
+                label=f"Gemma 4 — {len(procedure.steps)} step(s)"
+                      f" · {gemma_seconds:.1f}s"
+                      + (f" · {len(all_errors)} warning(s)" if all_errors else ""),
                 state="complete",
             )
-            if all_errors:
-                for ve in all_errors:
-                    st.warning(f"Validation: {ve}")
-
+            for ve in all_errors:
+                st.warning(f"Validation: {ve}")
             st.session_state["validation_warnings"] = all_errors
         except RuntimeError as exc:
-            status.update(label="❌ Synthesis failed", state="error")
+            status.update(label="Synthesis failed", state="error")
             st.error(str(exc))
             st.session_state["error_msg"] = str(exc)
             st.stop()
 
-    # Persist everything in session_state
-    st.session_state["procedure"]            = procedure
-    st.session_state["transcript"]           = transcript_result
-    st.session_state["pdf_result"]           = pdf_result
-    st.session_state["image_data"]           = image_data
-    st.session_state["processing_done"]      = True
-    st.session_state["timings"]              = timings
-    st.rerun()  # clean rerun → display block renders without status widgets
+    st.session_state["procedure"]           = procedure
+    st.session_state["transcript"]          = transcript_result
+    st.session_state["pdf_result"]          = pdf_result
+    st.session_state["image_data"]          = image_data
+    st.session_state["processing_done"]     = True
+    st.session_state["timings"]             = timings
+    st.rerun()
 
 # ---------------------------------------------------------------------------
-# Display — reads only from session_state; no processing here.
+# RESULTS DISPLAY
 # ---------------------------------------------------------------------------
 if st.session_state["processing_done"] and st.session_state["procedure"] is not None:
-
     procedure = st.session_state["procedure"]
 
-    st.markdown(
-        f"<div class='hf-hero' style='margin-top:1rem;'>"
-        f"<h1 style='font-size:2rem!important;'>"
-        f"<span style='color:#E53927;'>📋</span> {procedure.title}</h1>"
-        f"<p>{procedure.overview}</p></div>",
-        unsafe_allow_html=True,
-    )
+    # ── Procedure banner ─────────────────────────────────────────────────────
+    st.markdown(f"""
+<div class="sc-proc-banner">
+  <h2>{procedure.title}</h2>
+  <p>{procedure.overview}</p>
+</div>
+""", unsafe_allow_html=True)
 
-    # Show any post-generation validation warnings
+    # Validation warnings
     if st.session_state.get("validation_warnings"):
-        with st.expander("⚠️ Validation warnings", expanded=False):
+        with st.expander("Validation warnings", expanded=False):
             for vw in st.session_state["validation_warnings"]:
                 st.warning(vw)
 
+    # ── Tools & materials ────────────────────────────────────────────────────
     if procedure.tools_and_materials:
-        with st.expander("🔧 Tools and Materials", expanded=True):
-            for item in procedure.tools_and_materials:
-                st.markdown(f"- {item}")
-
-    if procedure.general_warnings:
-        with st.expander("⚠️ General Warnings", expanded=True):
-            for w in procedure.general_warnings:
-                st.warning(w)
-
-    st.markdown(
-        "<h2 style='margin-top:1.5rem;'>Procedure <span style='color:#E53927;'>Steps</span></h2>",
-        unsafe_allow_html=True,
-    )
-    for step in procedure.steps:
-        inferred_note  = " *(inferred — no direct source)*" if step.is_inferred else ""
-        review_note    = " 🔶 *requires review*" if step.requires_review else ""
-        with st.expander(
-            f"Step {step.step_number}: {step.title}{inferred_note}{review_note}",
-            expanded=True,
-        ):
-            st.markdown(step.instruction)
-
-            if step.warnings:
-                for w in step.warnings:
-                    st.warning(w)
-
-            if step.checkpoint:
-                st.info(f"**Checkpoint:** {step.checkpoint}")
-
-            if step.sources:
-                src_lines = []
-                for src in step.sources:
-                    parts = [f"`{src.kind.upper()}`"]
-                    if src.image_id:
-                        parts.append(f"Image: `{src.image_id}`")
-                    if src.page_ref:
-                        parts.append(f"Page {src.page_ref}")
-                    if src.transcript_timestamp:
-                        parts.append(f"@ {src.transcript_timestamp}")
-                    if src.quote:
-                        parts.append(f'— *"{src.quote}"*')
-                    # P1: evidence status badge
-                    status_colours = {
-                        "SUPPORTED":           "🟢",
-                        "PARTIALLY_SUPPORTED": "🟡",
-                        "CONFLICTING":         "🔴",
-                        "INSUFFICIENT":        "⚫",
-                    }
-                    badge = status_colours.get(src.evidence_status, "")
-                    parts.append(f"{badge} `{src.evidence_status}`")
-                    if src.support_explanation:
-                        parts.append(f"— {src.support_explanation}")
-                    src_lines.append("• " + " ".join(parts))
-                st.markdown("**Evidence:** " + "  \n".join(src_lines))
-
-            if step.uncertainty_note:
-                st.warning(f"🔶 Uncertainty: {step.uncertainty_note}")
-
-    col_a, col_b, col_c = st.columns(3)
-    with col_a:
-        if procedure.missing_information:
-            st.markdown("#### ❓ Missing Info")
-            for item in procedure.missing_information:
-                st.markdown(f"- {item}")
-    with col_b:
-        if procedure.contradictions:
-            st.markdown("#### ⚡ Contradictions")
-            for item in procedure.contradictions:
-                st.markdown(f"- {item}")
-    with col_c:
-        if procedure.unresolved_questions:
-            st.markdown("#### 🔍 Unresolved Questions")
-            for item in procedure.unresolved_questions:
-                st.markdown(f"- {item}")
-
-    if procedure.completion_checklist:
+        st.markdown("""
+<div style="margin-bottom:0.3rem;">
+  <div style="font-family:'DM Mono',monospace;font-size:0.7rem;
+              text-transform:uppercase;letter-spacing:0.1em;color:#BACBC3;">
+    Tools &amp; Materials
+  </div>
+</div>
+""", unsafe_allow_html=True)
+        items_html = "".join(
+            f"<li style='font-size:0.9rem;margin-bottom:0.25rem;'>{item}</li>"
+            for item in procedure.tools_and_materials
+        )
         st.markdown(
-            "<h3 style='margin-top:1.5rem;'>✅ Completion Checklist</h3>",
+            f"<ul style='border:1.5px solid rgba(23,34,31,0.15);"
+            f"border-radius:4px;background:white;padding:0.8rem 0.8rem 0.8rem 1.8rem;"
+            f"box-shadow:3px 3px 0 rgba(23,34,31,0.1);margin-bottom:1.5rem;'>"
+            f"{items_html}</ul>",
             unsafe_allow_html=True,
         )
+
+    # ── General warnings ─────────────────────────────────────────────────────
+    if procedure.general_warnings:
+        for w in procedure.general_warnings:
+            st.warning(w)
+
+    # ── Steps ────────────────────────────────────────────────────────────────
+    st.markdown("""
+<div style="margin:2rem 0 1rem;">
+  <div style="font-family:'DM Mono',monospace;font-size:0.7rem;
+              text-transform:uppercase;letter-spacing:0.1em;color:#BACBC3;
+              margin-bottom:0.3rem;">Section 02</div>
+  <h2 style="margin:0;">Procedure steps.</h2>
+</div>
+""", unsafe_allow_html=True)
+
+    # Map image filename → bytes (for inline thumbnails in steps)
+    image_map: dict[str, bytes] = {}
+    if st.session_state.get("image_data"):
+        for fname, fdata in st.session_state["image_data"]:
+            image_map[fname] = fdata
+
+    for step in procedure.steps:
+        is_inf = step.is_inferred
+        is_rev = step.requires_review
+        card_cls = "inferred" if is_inf else ("review" if is_rev else "")
+        num_cls  = "inferred" if is_inf else ""
+        badges = ""
+        if is_inf:
+            badges += "<span class='sc-step-badge inf'>INFERRED</span>"
+        if is_rev:
+            badges += "<span class='sc-step-badge rev'>REVIEW</span>"
+
+        st.markdown(
+            f"<div class='sc-step {card_cls}'>"
+            f"<div style='display:flex;align-items:baseline;gap:0;'>"
+            f"<span class='sc-step-num {num_cls}'>{step.step_number:02d}</span>"
+            f"<div style='flex:1;'>"
+            f"<div class='sc-step-title'>{step.title}{badges}</div>"
+            f"<div class='sc-step-body'>{step.instruction}</div>",
+            unsafe_allow_html=True,
+        )
+
+        # Checkpoint
+        if step.checkpoint:
+            st.markdown(
+                f"<div class='sc-checkpoint'>{step.checkpoint}</div>",
+                unsafe_allow_html=True,
+            )
+
+        # Step warnings
+        for w in step.warnings:
+            st.warning(w)
+
+        # Evidence
+        if step.sources:
+            ev_html = "<div style='margin-top:0.6rem;'>"
+            ev_html += "<span style='font-family:DM Mono,monospace;font-size:0.68rem;" \
+                       "text-transform:uppercase;letter-spacing:0.06em;color:#BACBC3;" \
+                       "margin-right:0.4rem;'>Evidence</span>"
+            # Inline image thumbnail from first IMAGE source if available
+            thumb_shown = False
+            for src in step.sources:
+                kind = src.kind
+                if kind == "transcript":
+                    ts = f" @{src.transcript_timestamp}" if src.transcript_timestamp else ""
+                    q  = f" &ldquo;{src.quote}&rdquo;" if src.quote else ""
+                    ev_html += f"<span class='sc-ev sc-ev-t'>T{ts}{q}</span>"
+                elif kind == "image":
+                    img_label = src.image_id or "photo"
+                    ev_html += f"<span class='sc-ev sc-ev-i'>IMG {img_label}</span>"
+                    # Show thumbnail once per step
+                    if not thumb_shown and src.image_id and src.image_id in image_map:
+                        import io as _io
+                        st.image(
+                            _io.BytesIO(image_map[src.image_id]),
+                            caption=src.image_id,
+                            width=160,
+                        )
+                        thumb_shown = True
+                elif kind == "manual":
+                    pg = f" p.{src.page_ref}" if src.page_ref else ""
+                    ev_html += f"<span class='sc-ev sc-ev-m'>DOC{pg}</span>"
+                else:
+                    ev_html += "<span class='sc-ev sc-ev-x'>INFERRED</span>"
+                # Evidence status
+                status_map = {
+                    "SUPPORTED":           ("sc-ev-supported", "✓"),
+                    "PARTIALLY_SUPPORTED": ("sc-ev-partial",   "~"),
+                    "CONFLICTING":         ("sc-ev-conflict",  "!"),
+                    "INSUFFICIENT":        ("sc-ev-insuf",     "?"),
+                }
+                cls, sym = status_map.get(src.evidence_status, ("", ""))
+                if cls:
+                    ev_html += (
+                        f"<span style='font-family:DM Mono,monospace;font-size:0.7rem;"
+                        f"margin-left:2px;' class='{cls}'>{sym}</span>"
+                    )
+            ev_html += "</div>"
+            st.markdown(ev_html, unsafe_allow_html=True)
+
+        # Uncertainty note
+        if step.uncertainty_note:
+            st.markdown(
+                f"<div style='background:#fdf9ec;border:1.5px solid #F3C64E;"
+                f"border-radius:4px;padding:0.5rem 0.9rem;font-size:0.85rem;"
+                f"margin-top:0.4rem;color:#17221F;'>"
+                f"<strong style='color:#7a6020;'>Uncertain:</strong> {step.uncertainty_note}</div>",
+                unsafe_allow_html=True,
+            )
+
+        st.markdown("</div></div></div>", unsafe_allow_html=True)
+
+    # ── Meta grid — missing / contradictions / questions ─────────────────────
+    has_meta = (
+        procedure.missing_information
+        or procedure.contradictions
+        or procedure.unresolved_questions
+    )
+    if has_meta:
+        m_items = "".join(f"<li>{x}</li>" for x in procedure.missing_information) or "<li style='color:#BACBC3;'>None identified.</li>"
+        c_items = "".join(f"<li>{x}</li>" for x in procedure.contradictions) or "<li style='color:#BACBC3;'>None identified.</li>"
+        q_items = "".join(f"<li>{x}</li>" for x in procedure.unresolved_questions) or "<li style='color:#BACBC3;'>None identified.</li>"
+        st.markdown(f"""
+<div class="sc-meta-grid">
+  <div class="sc-meta-box">
+    <div class="sc-meta-box-title">Missing information</div>
+    <ul>{m_items}</ul>
+  </div>
+  <div class="sc-meta-box">
+    <div class="sc-meta-box-title">Contradictions</div>
+    <ul>{c_items}</ul>
+  </div>
+  <div class="sc-meta-box">
+    <div class="sc-meta-box-title">Open questions</div>
+    <ul>{q_items}</ul>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+    # ── Completion checklist ──────────────────────────────────────────────────
+    if procedure.completion_checklist:
+        st.markdown("""
+<div style="margin:2rem 0 0.8rem;">
+  <div style="font-family:'DM Mono',monospace;font-size:0.7rem;
+              text-transform:uppercase;letter-spacing:0.1em;color:#BACBC3;
+              margin-bottom:0.3rem;">Section 03</div>
+  <h2 style="margin:0;">Completion checklist.</h2>
+</div>
+""", unsafe_allow_html=True)
         for idx, item in enumerate(procedure.completion_checklist):
             st.checkbox(item, value=False, key=f"checklist_{idx}")
 
-    st.divider()
+    # ── Visual workflow (Mermaid) ─────────────────────────────────────────────
+    st.markdown("""
+<div style="margin:2.5rem 0 1rem;">
+  <div style="font-family:'DM Mono',monospace;font-size:0.7rem;
+              text-transform:uppercase;letter-spacing:0.1em;color:#BACBC3;
+              margin-bottom:0.3rem;">Section 04</div>
+  <h2 style="margin:0 0 0.3rem;">Visual workflow.</h2>
+  <p style="color:#BACBC3;font-size:0.88rem;margin:0 0 1rem;">
+    The diagram below is generated deterministically from the validated
+    procedure data — no extra AI calls are made.
+  </p>
+</div>
+""", unsafe_allow_html=True)
 
-    markdown_output = procedure_to_markdown(procedure)
-    safe_title = procedure.title.lower().replace(" ", "_")[:40]
-    st.download_button(
-        label="⬇️ Download procedure as Markdown",
-        data=markdown_output.encode("utf-8"),
-        file_name=f"{safe_title}_procedure.md",
-        mime="text/markdown",
-        use_container_width=True,
-        type="primary",
-        key="btn_download",
-    )
-
-    st.markdown(
-        "<div style='text-align:center;color:#8BB2DE;font-size:0.82rem;"
-        "padding:0.4rem;border-top:1px dashed #3D5F58;margin-top:0.5rem;'>"
-        "Use <strong>🔄 Start new procedure</strong> in the sidebar to upload different files.</div>",
-        unsafe_allow_html=True,
-    )
-
-    # -------------------------------------------------------------------------
-    # Mermaid diagram views
-    # Built from the already-generated procedure — no API calls.
-    # -------------------------------------------------------------------------
-    st.markdown(
-        "<h2 style='margin-top:2rem;'>📊 Diagram <span style='color:#E53927;'>Views</span></h2>",
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        "<p style='color:#8BB2DE;margin-top:-0.5rem;margin-bottom:1rem;'>"
-        "Changing diagram type does not re-run Whisper, Docling, or Gemma 4.</p>",
-        unsafe_allow_html=True,
-    )
-
-    dtab_flow, dtab_seq = st.tabs(["Flowchart", "Sequence Diagram"])
+    dtab_flow, dtab_seq = st.tabs(["Flowchart", "Sequence diagram"])
 
     with dtab_flow:
         diagram_fc, err_fc = build_mermaid_flowchart(procedure)
-        if err_fc and procedure.graph is None:
+        if err_fc:
             st.warning(f"Could not build flowchart: {err_fc}")
-        elif err_fc:
-            st.warning(f"Graph-based flowchart failed: {err_fc}")
         else:
-            graph_source_note = (
-                "Built from validated graph data (P2)."
+            src_note = (
+                "Built from validated graph data returned by Gemma 4."
                 if procedure.graph is not None
-                else "Built from step order (fallback — no graph in response)."
+                else "Built from step order (Gemma 4 did not return graph data)."
             )
-            st.caption(graph_source_note)
-            valid, valmsg = validate_mermaid_syntax(diagram_fc)
-            if not valid:
-                st.error(f"Flowchart validation failed: {valmsg}")
+            st.markdown(
+                f"<div style='font-family:DM Mono,monospace;font-size:0.72rem;"
+                f"color:#BACBC3;margin-bottom:0.6rem;'>{src_note}</div>",
+                unsafe_allow_html=True,
+            )
+            valid_d, msg_d = validate_mermaid_syntax(diagram_fc)
+            if not valid_d:
+                st.error(f"Diagram validation failed: {msg_d}")
             else:
+                st.markdown("<div class='sc-diagram-wrap'>", unsafe_allow_html=True)
                 try:
                     from streamlit_mermaid import st_mermaid  # type: ignore
-                    st_mermaid(diagram_fc, height=max(300, len(procedure.steps) * 90))
+                    st_mermaid(diagram_fc, height=max(320, len(procedure.steps) * 90))
                 except Exception as render_exc:
                     st.error(f"Mermaid render error: {render_exc}")
+                st.markdown("</div>", unsafe_allow_html=True)
                 with st.expander("View Mermaid source", expanded=False):
                     st.code(diagram_fc, language="text")
 
@@ -1044,99 +1470,97 @@ if st.session_state["processing_done"] and st.session_state["procedure"] is not 
         if err_seq:
             st.info(f"Sequence diagram not available: {err_seq}")
         else:
-            valid, valmsg = validate_mermaid_syntax(diagram_seq)
-            if not valid:
-                st.error(f"Sequence diagram validation failed: {valmsg}")
+            valid_s, msg_s = validate_mermaid_syntax(diagram_seq)
+            if not valid_s:
+                st.error(f"Diagram validation failed: {msg_s}")
             else:
+                st.markdown("<div class='sc-diagram-wrap'>", unsafe_allow_html=True)
                 try:
                     from streamlit_mermaid import st_mermaid  # type: ignore
-                    st_mermaid(diagram_seq, height=max(300, len(procedure.steps) * 110))
+                    st_mermaid(diagram_seq, height=max(320, len(procedure.steps) * 110))
                 except Exception as render_exc:
                     st.error(f"Mermaid render error: {render_exc}")
+                st.markdown("</div>", unsafe_allow_html=True)
                 with st.expander("View Mermaid source", expanded=False):
                     st.code(diagram_seq, language="text")
 
-    # -------------------------------------------------------------------------
-    # Open-source libraries used in this procedure
-    # Checkbox list — purely informational, no reprocessing triggered.
-    # -------------------------------------------------------------------------
-    st.markdown(
-        "<h2 style='margin-top:2rem;'>🔧 Open-Source <span style='color:#E53927;'>Libraries</span></h2>",
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        "<p style='color:#8BB2DE;margin-top:-0.5rem;margin-bottom:1rem;'>"
-        "The open-source tools that powered this procedure. "
-        "Click any checkbox to mark it as explored.</p>",
-        unsafe_allow_html=True,
-    )
+    # ── Export controls ───────────────────────────────────────────────────────
+    st.markdown("""
+<div style="margin:2.5rem 0 1rem;">
+  <div style="font-family:'DM Mono',monospace;font-size:0.7rem;
+              text-transform:uppercase;letter-spacing:0.1em;color:#BACBC3;
+              margin-bottom:0.3rem;">Section 05</div>
+  <h2 style="margin:0 0 0.5rem;">Export &amp; start over.</h2>
+</div>
+""", unsafe_allow_html=True)
 
-    # Each entry: (label, description, url, license)
+    exp_col, reset_col = st.columns([3, 1], gap="medium")
+    with exp_col:
+        markdown_output = procedure_to_markdown(procedure)
+        safe_title = procedure.title.lower().replace(" ", "_")[:40]
+        st.download_button(
+            label="Download procedure as Markdown",
+            data=markdown_output.encode("utf-8"),
+            file_name=f"{safe_title}_procedure.md",
+            mime="text/markdown",
+            use_container_width=True,
+            key="btn_download",
+        )
+    with reset_col:
+        if st.button("Start over", key="btn_reset2", use_container_width=True):
+            for _k, _v in _DEFAULTS.items():
+                st.session_state[_k] = _v
+            st.rerun()
+
+    # ── Open-source libraries ─────────────────────────────────────────────────
+    st.markdown("""
+<div style="margin:2.5rem 0 1rem;">
+  <div style="font-family:'DM Mono',monospace;font-size:0.7rem;
+              text-transform:uppercase;letter-spacing:0.1em;color:#BACBC3;
+              margin-bottom:0.3rem;">Built with</div>
+  <h2 style="margin:0 0 0.5rem;">Open-source libraries.</h2>
+  <p style="color:#BACBC3;font-size:0.88rem;margin:0 0 1rem;">
+    Check off any library you want to explore further.
+  </p>
+</div>
+""", unsafe_allow_html=True)
+
     _OSS_LIBS = [
-        (
-            "faster-whisper",
-            "Local audio transcription — used to transcribe your recording.",
-            "https://github.com/SYSTRAN/faster-whisper",
-            "MIT",
-        ),
-        (
-            "Docling",
-            "PDF extraction — parsed your reference manual with page references.",
-            "https://github.com/DS4SD/docling",
-            "MIT",
-        ),
-        (
-            "Gemma 4 (gemma-4-26b-a4b-it)",
-            "Open-weight multimodal model — synthesised the procedure from your inputs.",
-            "https://ai.google.dev/gemma",
-            "Gemma Terms of Use",
-        ),
-        (
-            "Pydantic",
-            "Schema validation — ensured the generated procedure matched the required structure.",
-            "https://github.com/pydantic/pydantic",
-            "MIT",
-        ),
-        (
-            "Streamlit",
-            "Web UI framework — powers this entire interface.",
-            "https://github.com/streamlit/streamlit",
-            "Apache 2.0",
-        ),
-        (
-            "streamlit-mermaid",
-            "Renders Mermaid flowchart and sequence diagrams inside Streamlit.",
-            "https://github.com/jhbale11/streamlit-mermaid",
-            "MIT",
-        ),
-        (
-            "pypdf",
-            "Plain-text PDF fallback when Docling is unavailable.",
-            "https://github.com/py-pdf/pypdf",
-            "BSD-3-Clause",
-        ),
-        (
-            "python-dotenv",
-            "Loads your GEMINI_API_KEY from the .env file safely.",
-            "https://github.com/theskumar/python-dotenv",
-            "BSD-3-Clause",
-        ),
+        ("faster-whisper", "Local audio transcription with timestamped segments.",
+         "https://github.com/SYSTRAN/faster-whisper", "MIT"),
+        ("Docling", "Structured PDF extraction with page references.",
+         "https://github.com/DS4SD/docling", "MIT"),
+        ("Gemma 4 (gemma-4-26b-a4b-it)", "Open-weight multimodal model for procedure synthesis.",
+         "https://ai.google.dev/gemma", "Gemma Terms"),
+        ("Pydantic", "Schema validation for the structured procedure output.",
+         "https://github.com/pydantic/pydantic", "MIT"),
+        ("Streamlit", "Web UI framework powering this interface.",
+         "https://github.com/streamlit/streamlit", "Apache 2.0"),
+        ("streamlit-mermaid", "Mermaid diagram rendering inside Streamlit.",
+         "https://github.com/jhbale11/streamlit-mermaid", "MIT"),
+        ("pypdf", "Plain-text PDF fallback when Docling is unavailable.",
+         "https://github.com/py-pdf/pypdf", "BSD-3-Clause"),
+        ("python-dotenv", "Loads GEMINI_API_KEY from .env safely.",
+         "https://github.com/theskumar/python-dotenv", "BSD-3-Clause"),
     ]
 
-    st.markdown("<div class='hf-card'>", unsafe_allow_html=True)
-    for i, (name, description, url, lic) in enumerate(_OSS_LIBS):
+    st.markdown(
+        "<div style='border:1.5px solid rgba(23,34,31,0.15);border-radius:4px;"
+        "background:white;padding:0.4rem 1.2rem;box-shadow:3px 3px 0 rgba(23,34,31,0.08);'>",
+        unsafe_allow_html=True,
+    )
+    for i, (name, desc, url, lic) in enumerate(_OSS_LIBS):
         col_cb, col_info = st.columns([1, 11])
         with col_cb:
             st.checkbox("", key=f"oss_lib_{i}", label_visibility="collapsed")
         with col_info:
             st.markdown(
-                f"<div class='oss-row'>"
-                f"<div>"
-                f"<a href='{url}' target='_blank' class='oss-name' "
-                f"style='text-decoration:none;color:#F5B726;'>{name}</a>"
-                f"&nbsp;&nbsp;<span class='oss-lic hf-tag-blue'>{lic}</span><br>"
-                f"<span class='oss-desc'>{description}</span>"
-                f"</div></div>",
+                f"<div class='sc-oss-row'>"
+                f"<a href='{url}' target='_blank' class='sc-oss-name' "
+                f"style='text-decoration:none;'>{name}</a>"
+                f"&nbsp;<span class='sc-oss-lic'>{lic}</span><br>"
+                f"<span class='sc-oss-desc'>{desc}</span>"
+                f"</div>",
                 unsafe_allow_html=True,
             )
     st.markdown("</div>", unsafe_allow_html=True)

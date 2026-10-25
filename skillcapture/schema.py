@@ -3,14 +3,37 @@ Pydantic models for the SkillCapture structured procedure output.
 
 Every field that could not be directly supported by source evidence is
 explicitly flagged so the UI can surface uncertainty to the user.
+
+Priority 1 additions (evidence reconciliation):
+- SourceRef: evidence_status, support_explanation
+- ProcedureStep: step_id, requires_review
+
+Priority 2 additions (graph for Mermaid generation):
+- GraphNode, GraphEdge, ProcedureGraph
+- Procedure.graph (optional)
 """
 
 from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
+
+# ---------------------------------------------------------------------------
+# Evidence status vocabulary
+# ---------------------------------------------------------------------------
+EvidenceStatus = Literal[
+    "SUPPORTED",           # at least one source directly supports this
+    "PARTIALLY_SUPPORTED", # sources support it but with gaps or ambiguity
+    "CONFLICTING",         # sources disagree about this
+    "INSUFFICIENT",        # no adequate evidence; requires human review
+]
+
+
+# ---------------------------------------------------------------------------
+# Source reference
+# ---------------------------------------------------------------------------
 
 class SourceRef(BaseModel):
     """A traceable reference back to an input source."""
@@ -39,6 +62,7 @@ class SourceRef(BaseModel):
         if v is None:
             return None
         return str(v)
+
     transcript_timestamp: str | None = Field(
         default=None,
         description="Approximate timestamp in the audio transcript, e.g. '00:45'.",
@@ -50,11 +74,48 @@ class SourceRef(BaseModel):
             "Leave null for 'inferred' kind."
         ),
     )
+    # P1 additions
+    support_explanation: str | None = Field(
+        default=None,
+        description=(
+            "Concise explanation of how this source supports the step. "
+            "Must be grounded in the actual content of this source. "
+            "Do not repeat the instruction text."
+        ),
+    )
+    evidence_status: EvidenceStatus = Field(
+        default="SUPPORTED",
+        description=(
+            "SUPPORTED: source directly supports this step. "
+            "PARTIALLY_SUPPORTED: source supports it but with gaps or ambiguity. "
+            "CONFLICTING: this source contradicts another source for this step. "
+            "INSUFFICIENT: no adequate evidence; step requires human review."
+        ),
+    )
 
+    @field_validator("evidence_status", mode="before")
+    @classmethod
+    def normalise_evidence_status(cls, v: object) -> str:
+        """Accept lowercase variants from the model."""
+        if isinstance(v, str):
+            return v.upper()
+        return v  # type: ignore[return-value]
+
+
+# ---------------------------------------------------------------------------
+# Procedure step
+# ---------------------------------------------------------------------------
 
 class ProcedureStep(BaseModel):
     """A single numbered step in the procedure."""
 
+    # P1: stable unique identifier — "step_1", "step_2", etc.
+    step_id: str = Field(
+        description=(
+            "Stable unique step identifier, e.g. 'step_1'. "
+            "Used to link graph nodes to procedure steps."
+        )
+    )
     step_number: int = Field(description="1-based step index.")
     title: str = Field(description="Short imperative title for this step.")
     instruction: str = Field(
@@ -89,7 +150,117 @@ class ProcedureStep(BaseModel):
             "relevant to this step. Null when the step is fully supported."
         ),
     )
+    # P1: human review flag
+    requires_review: bool = Field(
+        default=False,
+        description=(
+            "True when any source for this step has evidence_status CONFLICTING or "
+            "INSUFFICIENT, or when is_inferred is True. "
+            "Set this automatically based on the evidence; do not override to False "
+            "unless all sources are SUPPORTED."
+        ),
+    )
 
+    @model_validator(mode="after")
+    def auto_requires_review(self) -> "ProcedureStep":
+        """
+        Auto-set requires_review if any source is CONFLICTING/INSUFFICIENT,
+        or if the step is inferred. The model may also set it explicitly.
+        """
+        if self.is_inferred:
+            self.requires_review = True
+            return self
+        for src in self.sources:
+            if src.evidence_status in ("CONFLICTING", "INSUFFICIENT"):
+                self.requires_review = True
+                return self
+        return self
+
+    @field_validator("step_id", mode="before")
+    @classmethod
+    def normalise_step_id(cls, v: object) -> str:
+        """Accept step_id as int and coerce to string."""
+        if isinstance(v, int):
+            return f"step_{v}"
+        return str(v)
+
+
+# ---------------------------------------------------------------------------
+# Graph models (P2 — used for Mermaid generation)
+# ---------------------------------------------------------------------------
+
+class GraphNode(BaseModel):
+    """
+    A node in the procedure graph.
+    Each node maps back to a ProcedureStep via step_id.
+    """
+    node_id: str = Field(
+        description="Unique node identifier within the graph, e.g. 'N1'."
+    )
+    step_id: str = Field(
+        description="References ProcedureStep.step_id this node represents."
+    )
+    label: str = Field(
+        description="Short display label for this node (≤ 40 chars)."
+    )
+    node_type: Literal["action", "decision", "start", "end"] = Field(
+        default="action",
+        description=(
+            "'action': a regular procedure step. "
+            "'decision': a conditional branch point supported by evidence. "
+            "'start'/'end': terminal nodes."
+        ),
+    )
+    is_inferred: bool = Field(
+        default=False,
+        description="True when this node's step is inferred.",
+    )
+    requires_review: bool = Field(
+        default=False,
+        description="True when this node's step requires human review.",
+    )
+
+
+class GraphEdge(BaseModel):
+    """A directed edge between two graph nodes."""
+    from_node: str = Field(description="node_id of the source node.")
+    to_node: str   = Field(description="node_id of the target node.")
+    label: str | None = Field(
+        default=None,
+        description=(
+            "Optional edge label, e.g. a condition. "
+            "Only include when directly supported by evidence."
+        ),
+    )
+    is_inferred: bool = Field(
+        default=False,
+        description="True when this ordering relationship is inferred.",
+    )
+    evidence_ref: str | None = Field(
+        default=None,
+        description=(
+            "Optional: transcript_timestamp, image_id, or page_ref that "
+            "supports this ordering relationship."
+        ),
+    )
+
+
+class ProcedureGraph(BaseModel):
+    """
+    Directed graph of procedure steps for Mermaid generation.
+    Generated by Gemma 4 in the same response as the procedure.
+    """
+    nodes: list[GraphNode] = Field(
+        description="All graph nodes. Must include exactly one start and one end node."
+    )
+    edges: list[GraphEdge] = Field(
+        description="Directed edges. Every node must be reachable from start."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Top-level procedure
+# ---------------------------------------------------------------------------
 
 class Procedure(BaseModel):
     """Top-level structured procedure produced by SkillCapture."""
@@ -141,5 +312,13 @@ class Procedure(BaseModel):
         description=(
             "Verifiable items to confirm the procedure is complete. "
             "Derive these from checkpoints and the final state described in the sources."
+        ),
+    )
+    # P2: graph for Mermaid generation
+    graph: ProcedureGraph | None = Field(
+        default=None,
+        description=(
+            "Directed graph of procedure steps for Mermaid diagram generation. "
+            "Generated in the same model response as the written procedure."
         ),
     )

@@ -34,6 +34,7 @@ proc = Procedure(
     tools_and_materials=["kettle", "mug", "tea bag", "water"],
     steps=[
         ProcedureStep(
+            step_id="step_1",
             step_number=1,
             title="Boil water",
             instruction="Fill the kettle and bring to boil.",
@@ -42,6 +43,7 @@ proc = Procedure(
             checkpoint="Water is boiling visibly.",
         ),
         ProcedureStep(
+            step_id="step_2",
             step_number=2,
             title="Place tea bag",
             instruction="Put one tea bag in the mug.",
@@ -49,6 +51,7 @@ proc = Procedure(
             warnings=["Use a fresh tea bag."],
         ),
         ProcedureStep(
+            step_id="step_3",
             step_number=3,
             title="Pour water",
             instruction="Pour boiled water over the tea bag.",
@@ -58,6 +61,7 @@ proc = Procedure(
             ],
         ),
         ProcedureStep(
+            step_id="step_4",
             step_number=4,
             title="Steep and serve",
             instruction="Let steep for 3–5 minutes, remove bag, and serve.",
@@ -74,6 +78,7 @@ proc_no_sources = Procedure(
     overview="All steps are inferred.",
     steps=[
         ProcedureStep(
+            step_id="step_1",
             step_number=1,
             title="Do something",
             instruction="Unclear.",
@@ -98,16 +103,16 @@ print("✅ Test 2: Mermaid flowchart passes structural validation")
 
 # 3. All step IDs present
 for i in range(1, 5):
-    assert f"S{i}" in fc, f"Missing node S{i}"
-print("✅ Test 3: Flowchart contains all step IDs (S1–S4)")
+    assert f"step_{i}" in fc, f"Missing node step_{i}"
+print("✅ Test 3: Flowchart contains all step IDs (step_1–step_4)")
 
 # 4. Inferred step labelled
 assert "inferred" in fc.lower()
 print("✅ Test 4: Inferred step is labelled in flowchart")
 
 # 5. Checkpoint node present
-assert "S1_CP" in fc
-print("✅ Test 5: Checkpoint node S1_CP present")
+assert "step_1_CP" in fc
+print("✅ Test 5: Checkpoint node step_1_CP present")
 
 # 6. Sequence generated without error
 seq, err_seq = build_mermaid_sequence(proc)

@@ -59,6 +59,7 @@ from skillcapture.diagrams import (
     build_mermaid_sequence,
     validate_mermaid_syntax,
 )
+from skillcapture.validate_procedure import validate_procedure, validate_graph
 
 
 # ---------------------------------------------------------------------------
@@ -129,13 +130,14 @@ def _cached_extract_pdf(pdf_sha256: str, pdf_bytes: bytes,
 # Guard: only set keys that don't exist yet — safe to call on every rerun.
 # ---------------------------------------------------------------------------
 _DEFAULTS: dict = {
-    "procedure":       None,   # validated Procedure object
-    "transcript":      None,   # dict from transcribe_audio_with_model
-    "pdf_result":      None,   # dict from extract_pdf
-    "image_data":      None,   # list[(filename, bytes)]
-    "processing_done": False,  # True once a full successful run completed
-    "error_msg":       None,   # last fatal error string
-    "timings":         {},     # stage → elapsed seconds
+    "procedure":            None,   # validated Procedure object
+    "transcript":           None,   # dict from transcribe_audio_with_model
+    "pdf_result":           None,   # dict from extract_pdf
+    "image_data":           None,   # list[(filename, bytes)]
+    "processing_done":      False,  # True once a full successful run completed
+    "error_msg":            None,   # last fatal error string
+    "timings":              {},     # stage → elapsed seconds
+    "validation_warnings":  [],     # post-generation validation messages
 }
 for _k, _v in _DEFAULTS.items():
     if _k not in st.session_state:
@@ -383,17 +385,31 @@ if generate_btn and can_generate:
                 segments=transcript_result["segments"],
                 images=image_data,
                 manual_text=pdf_result["text"],
+                manual_pages=pdf_result.get("pages", []),
             )
             gemma_seconds = time.perf_counter() - t0
             timings["Gemma 4 API"] = gemma_seconds
             timings["Total"] = time.perf_counter() - run_start
+
+            # ── Post-generation deterministic validation ──────────────────
+            supplied_image_ids = {fname for fname, _ in image_data}
+            proc_errors  = validate_procedure(procedure, supplied_image_ids)
+            graph_errors = validate_graph(procedure)
+            all_errors   = proc_errors + graph_errors
+
             status.update(
                 label=(
                     f"✅ Procedure generated — {len(procedure.steps)} step(s)"
                     f" · {gemma_seconds:.1f}s"
+                    + (f" · {len(all_errors)} validation warning(s)" if all_errors else "")
                 ),
                 state="complete",
             )
+            if all_errors:
+                for ve in all_errors:
+                    st.warning(f"Validation: {ve}")
+
+            st.session_state["validation_warnings"] = all_errors
         except RuntimeError as exc:
             status.update(label="❌ Synthesis failed", state="error")
             st.error(str(exc))
@@ -401,12 +417,12 @@ if generate_btn and can_generate:
             st.stop()
 
     # Persist everything in session_state
-    st.session_state["procedure"]       = procedure
-    st.session_state["transcript"]      = transcript_result
-    st.session_state["pdf_result"]      = pdf_result
-    st.session_state["image_data"]      = image_data
-    st.session_state["processing_done"] = True
-    st.session_state["timings"]         = timings
+    st.session_state["procedure"]            = procedure
+    st.session_state["transcript"]           = transcript_result
+    st.session_state["pdf_result"]           = pdf_result
+    st.session_state["image_data"]           = image_data
+    st.session_state["processing_done"]      = True
+    st.session_state["timings"]              = timings
     st.rerun()  # clean rerun → display block renders without status widgets
 
 # ---------------------------------------------------------------------------
@@ -420,6 +436,12 @@ if st.session_state["processing_done"] and st.session_state["procedure"] is not 
     st.subheader(f"📋 {procedure.title}")
     st.markdown(procedure.overview)
 
+    # Show any post-generation validation warnings
+    if st.session_state.get("validation_warnings"):
+        with st.expander("⚠️ Validation warnings", expanded=False):
+            for vw in st.session_state["validation_warnings"]:
+                st.warning(vw)
+
     if procedure.tools_and_materials:
         with st.expander("🔧 Tools and Materials", expanded=True):
             for item in procedure.tools_and_materials:
@@ -432,9 +454,10 @@ if st.session_state["processing_done"] and st.session_state["procedure"] is not 
 
     st.markdown("### Steps")
     for step in procedure.steps:
-        inferred_note = " *(inferred — no direct source)*" if step.is_inferred else ""
+        inferred_note  = " *(inferred — no direct source)*" if step.is_inferred else ""
+        review_note    = " 🔶 *requires review*" if step.requires_review else ""
         with st.expander(
-            f"Step {step.step_number}: {step.title}{inferred_note}",
+            f"Step {step.step_number}: {step.title}{inferred_note}{review_note}",
             expanded=True,
         ):
             st.markdown(step.instruction)
@@ -458,6 +481,17 @@ if st.session_state["processing_done"] and st.session_state["procedure"] is not 
                         parts.append(f"@ {src.transcript_timestamp}")
                     if src.quote:
                         parts.append(f'— *"{src.quote}"*')
+                    # P1: evidence status badge
+                    status_colours = {
+                        "SUPPORTED":           "🟢",
+                        "PARTIALLY_SUPPORTED": "🟡",
+                        "CONFLICTING":         "🔴",
+                        "INSUFFICIENT":        "⚫",
+                    }
+                    badge = status_colours.get(src.evidence_status, "")
+                    parts.append(f"{badge} `{src.evidence_status}`")
+                    if src.support_explanation:
+                        parts.append(f"— {src.support_explanation}")
                     src_lines.append("• " + " ".join(parts))
                 st.markdown("**Evidence:** " + "  \n".join(src_lines))
 
@@ -519,9 +553,17 @@ if st.session_state["processing_done"] and st.session_state["procedure"] is not 
 
     with dtab_flow:
         diagram_fc, err_fc = build_mermaid_flowchart(procedure)
-        if err_fc:
+        if err_fc and procedure.graph is None:
             st.warning(f"Could not build flowchart: {err_fc}")
+        elif err_fc:
+            st.warning(f"Graph-based flowchart failed: {err_fc}")
         else:
+            graph_source_note = (
+                "Built from validated graph data (P2)."
+                if procedure.graph is not None
+                else "Built from step order (fallback — no graph in response)."
+            )
+            st.caption(graph_source_note)
             valid, valmsg = validate_mermaid_syntax(diagram_fc)
             if not valid:
                 st.error(f"Flowchart validation failed: {valmsg}")

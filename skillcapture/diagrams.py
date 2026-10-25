@@ -1,58 +1,62 @@
 """
 Mermaid diagram generators for SkillCapture procedures.
 
-Converts a validated Procedure into:
-  - Mermaid flowchart  (TD, top-down linear flow with evidence labels)
-  - Mermaid sequence diagram (actor → step interactions where actors are detectable)
+P2: Primary path uses the validated ProcedureGraph from Gemma 4's response.
+    Python generates Mermaid syntax deterministically — Gemma 4 does NOT
+    return raw Mermaid code.
 
-Rules:
-- Only steps, titles, and source evidence that exist in the Procedure are used.
-- No steps, edges, or decision branches are invented.
-- Inferred steps are labelled as such.
-- Node IDs are sanitised to safe alphanumeric identifiers.
-- Every builder returns a (diagram_string, error_string | None) tuple.
-  On error the diagram_string is empty and the error describes why.
+Fallback: If no graph is present, builds a linear flowchart from step order.
+
+All builders:
+  - Only use data present in the validated Procedure/ProcedureGraph.
+  - Sanitise all user-provided labels before embedding in Mermaid syntax.
+  - Return (mermaid_string, error | None).
 """
 
 from __future__ import annotations
 
 import re
 
-from skillcapture.schema import Procedure, ProcedureStep
+from skillcapture.schema import GraphEdge, GraphNode, Procedure, ProcedureGraph, ProcedureStep
 
 
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
 
-def _safe_id(step_number: int) -> str:
-    """Stable, safe node ID for a step: S1, S2, …"""
-    return f"S{step_number}"
-
-
-def _truncate(text: str, max_len: int = 40) -> str:
-    """Truncate a label to keep diagrams readable."""
-    text = text.strip()
-    return text if len(text) <= max_len else text[: max_len - 1] + "…"
+def _safe_node_id(raw: str) -> str:
+    """
+    Sanitise a node_id so it is safe as a Mermaid node identifier.
+    Keeps alphanumerics and underscores only; replaces everything else with _.
+    """
+    sanitised = re.sub(r"[^A-Za-z0-9_]", "_", raw)
+    if sanitised and sanitised[0].isdigit():
+        sanitised = "N" + sanitised
+    return sanitised or "NODE"
 
 
 def _mermaid_escape(text: str) -> str:
     """
-    Escape characters that break Mermaid node labels inside double quotes.
-    Mermaid doesn't allow raw double quotes or backticks in labels.
+    Escape characters that break Mermaid labels inside double quotes.
+    Input comes from model-generated or user-provided text — treat as untrusted.
     """
     text = text.replace('"', "'")
     text = text.replace("`", "'")
     text = text.replace("\n", " ")
-    text = re.sub(r"[<>{}]", "", text)
-    return text
+    # Remove angle brackets, braces — confuse Mermaid's lexer
+    text = re.sub(r"[<>{}|]", "", text)
+    # Prevent injection of Mermaid directives
+    text = re.sub(r"%%.*", "", text)
+    return text.strip()
+
+
+def _truncate(text: str, max_len: int = 40) -> str:
+    text = text.strip()
+    return text if len(text) <= max_len else text[: max_len - 1] + "…"
 
 
 def _source_badge(step: ProcedureStep) -> str:
-    """
-    One-line evidence summary for diagram labels.
-    Shows the first traceable source, or 'inferred' if all are inferred.
-    """
+    """One-line evidence badge for fallback flowchart labels."""
     for src in step.sources:
         if src.kind == "transcript" and src.transcript_timestamp:
             return f"[T {src.transcript_timestamp}]"
@@ -66,31 +70,129 @@ def _source_badge(step: ProcedureStep) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Mermaid flowchart
+# P2: Graph-based Mermaid flowchart (primary path)
+# ---------------------------------------------------------------------------
+
+def build_flowchart_from_graph(proc: Procedure) -> tuple[str, str | None]:
+    """
+    Build a Mermaid flowchart from the validated ProcedureGraph embedded in
+    the Procedure. This is the primary diagram path (P2).
+
+    Node shapes:
+      start/end  → stadium  ([label])
+      action     → rectangle  [label]
+      decision   → diamond  {label}
+      inferred   → parallelogram  [/label/]
+
+    Styling:
+      requires_review nodes  → amber fill
+      inferred nodes         → yellow fill
+
+    Returns (mermaid_string, error | None).
+    """
+    if proc.graph is None:
+        return "", "No graph data available. Using fallback diagram."
+
+    graph = proc.graph
+
+    # Build lookup: step_id → ProcedureStep (for labels/status)
+    step_lookup = {s.step_id: s for s in proc.steps}
+
+    lines: list[str] = ["flowchart TD"]
+
+    # Emit nodes
+    for node in graph.nodes:
+        nid   = _safe_node_id(node.node_id)
+        label = _mermaid_escape(_truncate(node.label, 45))
+
+        # Append evidence badge from linked step if available
+        linked_step = step_lookup.get(node.step_id)
+        if linked_step and node.node_type == "action":
+            badge = _mermaid_escape(_source_badge(linked_step))
+            if badge:
+                label = f"{label}\\n{badge}"
+
+        review_tag  = " ⚠" if node.requires_review else ""
+        inferred_tag = " ∿" if node.is_inferred else ""
+        full_label   = f"{label}{review_tag}{inferred_tag}"
+
+        if node.node_type == "start":
+            lines.append(f'    {nid}(["{full_label}"])')
+        elif node.node_type == "end":
+            lines.append(f'    {nid}(["{full_label}"])')
+        elif node.node_type == "decision":
+            lines.append(f'    {nid}{{"{full_label}"}}')
+        elif node.is_inferred:
+            lines.append(f'    {nid}[/"{full_label}"/]')
+        else:
+            lines.append(f'    {nid}["{full_label}"]')
+
+    # Emit edges
+    for edge in graph.edges:
+        src = _safe_node_id(edge.from_node)
+        tgt = _safe_node_id(edge.to_node)
+        if edge.label:
+            edge_label = _mermaid_escape(_truncate(edge.label, 25))
+            arrow = f'-- "{edge_label}" -->'
+        else:
+            arrow = "-->"
+        if edge.is_inferred:
+            arrow = arrow.replace("-->", "-.->")
+        lines.append(f"    {src} {arrow} {tgt}")
+
+    # Styling
+    start_nodes = [n for n in graph.nodes if n.node_type == "start"]
+    end_nodes   = [n for n in graph.nodes if n.node_type == "end"]
+    for node in start_nodes:
+        lines.append(
+            f"    style {_safe_node_id(node.node_id)} "
+            f"fill:#2E4742,color:#F2F2EB,stroke:#3D5F58"
+        )
+    for node in end_nodes:
+        lines.append(
+            f"    style {_safe_node_id(node.node_id)} "
+            f"fill:#3D5F58,color:#F2F2EB,stroke:#2E4742"
+        )
+    for node in graph.nodes:
+        nid = _safe_node_id(node.node_id)
+        if node.requires_review:
+            lines.append(
+                f"    style {nid} fill:#F5B726,color:#231F20,stroke:#E97B77"
+            )
+        elif node.is_inferred:
+            lines.append(
+                f"    style {nid} fill:#8BB2DE,color:#231F20,stroke:#3D5F58"
+            )
+
+    return "\n".join(lines), None
+
+
+# ---------------------------------------------------------------------------
+# Fallback: linear flowchart from step order (used when graph is absent)
 # ---------------------------------------------------------------------------
 
 def build_mermaid_flowchart(proc: Procedure) -> tuple[str, str | None]:
     """
-    Build a top-down Mermaid flowchart from procedure steps.
-
-    Each step becomes a rectangular node. Inferred steps use a parallelogram.
-    Steps with warnings get a rounded rectangle. Checkpoints appear as diamond
-    side-nodes connected with dashed arrows.
+    Build a top-down Mermaid flowchart from procedure step order.
+    Used as fallback when proc.graph is None.
 
     Returns (mermaid_string, error | None).
     """
+    # Prefer graph-based diagram if available
+    if proc.graph is not None:
+        return build_flowchart_from_graph(proc)
+
     if not proc.steps:
         return "", "No steps to render."
 
     lines: list[str] = ["flowchart TD"]
-
     lines.append(f'    START(["{_mermaid_escape(proc.title)}"])')
 
     prev_id = "START"
     for step in proc.steps:
-        node_id = _safe_id(step.step_number)
-        label   = _mermaid_escape(f"Step {step.step_number}: {_truncate(step.title)}")
-        badge   = _mermaid_escape(_source_badge(step))
+        node_id    = _safe_node_id(step.step_id)
+        label      = _mermaid_escape(f"Step {step.step_number}: {_truncate(step.title)}")
+        badge      = _mermaid_escape(_source_badge(step))
         full_label = f"{label}\\n{badge}" if badge else label
 
         if step.is_inferred:
@@ -117,7 +219,7 @@ def build_mermaid_flowchart(proc: Procedure) -> tuple[str, str | None]:
     for step in proc.steps:
         if step.is_inferred:
             lines.append(
-                f"    style {_safe_id(step.step_number)} "
+                f"    style {_safe_node_id(step.step_id)} "
                 f"fill:#F5B726,color:#231F20,stroke:#E97B77"
             )
 
@@ -125,19 +227,12 @@ def build_mermaid_flowchart(proc: Procedure) -> tuple[str, str | None]:
 
 
 # ---------------------------------------------------------------------------
-# Mermaid sequence diagram
+# Mermaid sequence diagram (unchanged logic, updated to use step_id)
 # ---------------------------------------------------------------------------
 
 def build_mermaid_sequence(proc: Procedure) -> tuple[str, str | None]:
     """
-    Build a Mermaid sequence diagram.
-
-    Actors are detected from source kinds present in the procedure:
-      Operator — always present (performs each step)
-      Audio    — if any transcript sources exist
-      Manual   — if any manual sources exist
-      Photos   — if any image sources exist
-
+    Build a Mermaid sequence diagram from source actor interactions.
     Returns (mermaid_string, error | None).
     """
     if not proc.steps:
@@ -172,9 +267,14 @@ def build_mermaid_sequence(proc: Procedure) -> tuple[str, str | None]:
         lines.append("    participant Photos")
 
     for step in proc.steps:
-        node_label   = _mermaid_escape(f"Step {step.step_number}: {_truncate(step.title)}")
+        node_label   = _mermaid_escape(
+            f"Step {step.step_number}: {_truncate(step.title)}"
+        )
+        review_tag   = " ⚠ review" if step.requires_review else ""
         inferred_tag = " [inferred]" if step.is_inferred else ""
-        lines.append(f"    Operator->>Operator: {node_label}{inferred_tag}")
+        lines.append(
+            f"    Operator->>Operator: {node_label}{inferred_tag}{review_tag}"
+        )
 
         for src in step.sources:
             if src.kind == "transcript" and has_transcript:
@@ -183,13 +283,16 @@ def build_mermaid_sequence(proc: Procedure) -> tuple[str, str | None]:
                     f': "{_mermaid_escape(_truncate(src.quote, 30))}"'
                     if src.quote else ""
                 )
-                lines.append(f"    Audio-->>Operator: Evidence{ts}{quote}")
+                status = f" [{src.evidence_status}]"
+                lines.append(f"    Audio-->>Operator: Evidence{ts}{quote}{status}")
             elif src.kind == "manual" and has_manual:
                 page = f" p.{src.page_ref}" if src.page_ref else ""
-                lines.append(f"    Manual-->>Operator: Evidence{page}")
+                status = f" [{src.evidence_status}]"
+                lines.append(f"    Manual-->>Operator: Evidence{page}{status}")
             elif src.kind == "image" and has_image:
                 img = f" ({src.image_id})" if src.image_id else ""
-                lines.append(f"    Photos-->>Operator: Evidence{img}")
+                status = f" [{src.evidence_status}]"
+                lines.append(f"    Photos-->>Operator: Evidence{img}{status}")
 
         if step.uncertainty_note:
             note = _mermaid_escape(_truncate(step.uncertainty_note, 50))
@@ -209,16 +312,12 @@ def build_mermaid_sequence(proc: Procedure) -> tuple[str, str | None]:
 def validate_mermaid_syntax(diagram: str) -> tuple[bool, str]:
     """
     Basic structural validation of a Mermaid diagram string.
-
-    Checks the first non-empty line is a known diagram type and that
-    the edge count is within practical limits.
-
     Returns (is_valid, error_message). error_message is empty when valid.
     """
     if not diagram.strip():
         return False, "Empty diagram string."
 
-    lines = [l for l in diagram.strip().splitlines() if l.strip()]
+    lines = [ln for ln in diagram.strip().splitlines() if ln.strip()]
     first = lines[0].strip().lower()
     valid_types = (
         "flowchart", "sequencediagram", "graph", "erdiagram",
@@ -227,7 +326,7 @@ def validate_mermaid_syntax(diagram: str) -> tuple[bool, str]:
     if not any(first.startswith(t) for t in valid_types):
         return False, f"Unrecognised diagram type in first line: {lines[0]!r}"
 
-    edge_count = sum(1 for l in lines if "-->" in l or "->>" in l)
+    edge_count = sum(1 for ln in lines if "-->" in ln or "->>" in ln)
     if edge_count > 200:
         return False, f"Too many edges ({edge_count}); diagram may not render."
 

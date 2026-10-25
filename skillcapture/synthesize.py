@@ -4,12 +4,15 @@ Multimodal procedure synthesis using Gemma 4 via the Gemini API.
 Model: gemma-4-26b-a4b-it  (Gemma 4, multimodal, through Google AI Studio)
 SDK  : google-genai 2.x  (google.genai)
 
-The function takes:
-  - transcript text (with optional timestamps)
-  - a list of (filename, image_bytes) tuples
-  - extracted manual text (may be empty)
+P1 changes:
+- System prompt now instructs cross-modal evidence reconciliation.
+- Evidence ledger with evidence_status and support_explanation.
+- step_id and requires_review per step.
 
-It returns a validated Procedure instance or raises a descriptive RuntimeError.
+P2 changes:
+- Graph nodes and edges included in the same response.
+- Python generates Mermaid from the validated graph — Gemma 4 does NOT return
+  raw Mermaid code.
 """
 
 from __future__ import annotations
@@ -23,67 +26,170 @@ from pydantic import ValidationError
 from skillcapture.schema import Procedure
 
 # ---------------------------------------------------------------------------
-# Model name — single source of truth, referenced in README
+# Model name — single source of truth
 # ---------------------------------------------------------------------------
 GEMMA_MODEL = "gemma-4-26b-a4b-it"
 
 
 # ---------------------------------------------------------------------------
-# System prompt
+# Evidence inventory builder
 # ---------------------------------------------------------------------------
+
+def _build_evidence_inventory(
+    segments: list[dict],
+    images: list[tuple[str, bytes]],
+    manual_pages: list[dict],
+) -> str:
+    """
+    Build a plain-text inventory of all supplied evidence identifiers.
+    Passed to Gemma 4 so it knows exactly which IDs are valid.
+    """
+    lines = ["=== EVIDENCE INVENTORY ==="]
+    lines.append("Use ONLY the identifiers listed below. Do not fabricate any.")
+    lines.append("")
+
+    # Transcript timestamps
+    if segments:
+        lines.append("TRANSCRIPT TIMESTAMPS available:")
+        for seg in segments:
+            mins = int(seg["start"] // 60)
+            secs = int(seg["start"] % 60)
+            lines.append(f"  [{mins:02d}:{secs:02d}] {seg['text'][:80]}")
+    else:
+        lines.append("TRANSCRIPT: full text provided, no segment timestamps.")
+    lines.append("")
+
+    # Image IDs
+    if images:
+        lines.append("IMAGE IDs available (use exact filenames):")
+        for filename, _ in images:
+            lines.append(f"  {filename}")
+    else:
+        lines.append("IMAGES: none supplied.")
+    lines.append("")
+
+    # Manual pages
+    if manual_pages:
+        lines.append("MANUAL PAGE REFERENCES available:")
+        for page in manual_pages:
+            lines.append(f"  Page {page['page']}")
+    else:
+        lines.append("MANUAL: none supplied.")
+
+    lines.append("")
+    lines.append(
+        "Any source reference you include MUST use an identifier from the above list. "
+        "If you cannot find a matching identifier, use kind='inferred' and set "
+        "evidence_status='INSUFFICIENT'."
+    )
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# System prompt — P1: cross-modal reconciliation
+# ---------------------------------------------------------------------------
+
 _SYSTEM_PROMPT = """\
 You are SkillCapture, an expert at analysing multimodal demonstrations and \
-producing clear, evidence-grounded procedures.
+producing rigorous, evidence-grounded procedures.
 
 You will receive:
-1. A spoken transcript (possibly with timestamps) of someone explaining a process.
-2. One or more photographs showing steps in that process.
-3. Optional extracted text from a reference manual.
+1. A spoken transcript with timestamps from faster-whisper.
+2. Photographs of the demonstration, each with a stable image filename.
+3. Extracted reference-manual content with page references.
+4. An EVIDENCE INVENTORY listing all valid source identifiers.
 
-Your task is to synthesise these sources into a structured procedure.
+═══ CROSS-MODAL REASONING — follow these steps in order ═══
 
-STRICT RULES:
-- Ground every step in the evidence supplied. If a step is your interpretation \
-rather than something explicitly shown or stated, set is_inferred=true and \
-explain in uncertainty_note.
-- Never fabricate tools, materials, warnings, or safety information that do not \
-appear in the sources.
-- If information is missing, list it in missing_information.
-- If sources contradict each other, list the contradiction explicitly.
-- For each step, cite the relevant source(s): transcript timestamp, image \
-filename, or manual page reference.
-- Do NOT include markdown code fences in your JSON response. Output raw JSON only.
+1. RECONSTRUCT: Determine the most likely order of steps from all sources combined.
+2. CORRELATE: Match each spoken instruction to a visible action in a photograph \
+and/or a manual instruction where possible.
+3. AGREE: Identify where transcript, photographs, and manual are consistent.
+4. CONFLICT: Identify where sources disagree. Keep all conflicting evidence; \
+do not silently pick one side.
+5. GAP: Identify missing prerequisites, unclear ordering, ambiguous visual details, \
+and any step that appears in only one source.
+6. SEPARATE: Distinguish directly supported statements from inferences.
+7. UNCERTAINTY: Leave unresolved details explicitly uncertain. Do not invent \
+missing instructions to fill gaps.
+8. RESTRAINT: Do not add safety instructions, materials, or steps that are not \
+supported by the evidence or clearly identified as requiring human review.
 
-Output a single JSON object matching this schema exactly:
+═══ EVIDENCE STATUS RULES ═══
+- SUPPORTED: at least one source directly shows or states this.
+- PARTIALLY_SUPPORTED: one source supports it but others are silent or ambiguous.
+- CONFLICTING: sources disagree — keep both sides in sources[], set \
+evidence_status="CONFLICTING" on the affected SourceRef, set requires_review=true.
+- INSUFFICIENT: no adequate evidence; set requires_review=true, is_inferred=true.
+
+A source reference does not itself prove a step is factually correct. \
+Do not present model-generated explanations as independent verification.
+
+═══ GRAPH RULES (for Mermaid diagram, P2) ═══
+- Include a graph object with nodes and edges.
+- Every action node must reference a step_id from your steps array.
+- Include exactly one node with node_type="start" and one with node_type="end".
+- Add decision nodes only where the evidence explicitly shows a conditional branch.
+- Do not invent dependencies or branches to make the diagram elaborate.
+- Every edge must reference valid node_ids from your nodes array.
+
+═══ OUTPUT FORMAT ═══
+Output a single raw JSON object — NO markdown fences, NO extra text.
+
 {
   "title": "string",
   "overview": "string",
   "tools_and_materials": ["string"],
   "steps": [
     {
+      "step_id": "step_1",
       "step_number": 1,
       "title": "string",
       "instruction": "string",
       "sources": [
         {
           "kind": "transcript|image|manual|inferred",
-          "image_id": "filename or null",
+          "image_id": "exact filename or null",
           "page_ref": "page number or null",
           "transcript_timestamp": "MM:SS or null",
-          "quote": "short excerpt or null"
+          "quote": "short verbatim excerpt or null",
+          "support_explanation": "how this source supports the step",
+          "evidence_status": "SUPPORTED|PARTIALLY_SUPPORTED|CONFLICTING|INSUFFICIENT"
         }
       ],
       "warnings": ["string"],
       "checkpoint": "string or null",
       "is_inferred": false,
-      "uncertainty_note": "string or null"
+      "uncertainty_note": "string or null",
+      "requires_review": false
     }
   ],
   "general_warnings": ["string"],
   "missing_information": ["string"],
   "contradictions": ["string"],
   "unresolved_questions": ["string"],
-  "completion_checklist": ["string"]
+  "completion_checklist": ["string"],
+  "graph": {
+    "nodes": [
+      {
+        "node_id": "N_START",
+        "step_id": "start",
+        "label": "Start",
+        "node_type": "start",
+        "is_inferred": false,
+        "requires_review": false
+      }
+    ],
+    "edges": [
+      {
+        "from_node": "N_START",
+        "to_node": "N1",
+        "label": null,
+        "is_inferred": false,
+        "evidence_ref": null
+      }
+    ]
+  }
 }
 """
 
@@ -97,16 +203,21 @@ def synthesize_procedure(
     segments: list[dict],
     images: list[tuple[str, bytes]],
     manual_text: str,
+    manual_pages: list[dict] | None = None,
 ) -> Procedure:
     """
     Call Gemma 4 via the Gemini API to produce a validated Procedure.
 
+    P1: Cross-modal evidence reconciliation with evidence_status per source.
+    P2: Graph nodes/edges in the same response for Mermaid generation.
+
     Parameters
     ----------
-    transcript   : plain-text transcript
-    segments     : list of {start, end, text} dicts from faster-whisper
-    images       : list of (filename, raw_bytes) tuples
-    manual_text  : full extracted manual text (empty string if no PDF)
+    transcript    : plain-text transcript
+    segments      : list of {start, end, text} dicts from faster-whisper
+    images        : list of (filename, raw_bytes) tuples
+    manual_text   : full extracted manual text
+    manual_pages  : list of {page, text} dicts from Docling extraction
 
     Returns
     -------
@@ -133,14 +244,20 @@ def synthesize_procedure(
 
     client = genai.Client(api_key=api_key)
 
-    # -----------------------------------------------------------------------
-    # Build the content parts list
-    # -----------------------------------------------------------------------
+    # ── Build evidence inventory ─────────────────────────────────────────────
+    evidence_inventory = _build_evidence_inventory(
+        segments, images, manual_pages or []
+    )
+
+    # ── Build content parts ──────────────────────────────────────────────────
     parts: list = []
 
-    # 1. Transcript
+    # 1. Evidence inventory (before transcript so it's seen first)
+    parts.append(types.Part.from_text(text=evidence_inventory))
+
+    # 2. Transcript with timestamps
+    from skillcapture.transcribe import segments_to_annotated_text
     if segments:
-        from skillcapture.transcribe import segments_to_annotated_text
         transcript_block = segments_to_annotated_text(segments)
     else:
         transcript_block = transcript
@@ -155,17 +272,15 @@ def synthesize_procedure(
         )
     )
 
-    # 2. Images — inline bytes
+    # 3. Images — inline bytes with explicit filename labels
     for filename, img_bytes in images:
         mime = _guess_mime(filename)
-        parts.append(
-            types.Part.from_bytes(data=img_bytes, mime_type=mime)
-        )
-        parts.append(
-            types.Part.from_text(text=f"(Image filename: {filename})")
-        )
+        parts.append(types.Part.from_bytes(data=img_bytes, mime_type=mime))
+        parts.append(types.Part.from_text(
+            text=f"(Image ID / filename: {filename})"
+        ))
 
-    # 3. Manual text
+    # 4. Manual text with page structure
     if manual_text.strip():
         parts.append(
             types.Part.from_text(
@@ -179,41 +294,36 @@ def synthesize_procedure(
             )
         )
 
-    # 4. Final instruction
+    # 5. Final instruction
     parts.append(
         types.Part.from_text(
             text=(
-                "Using only the sources above, produce the JSON procedure. "
-                "Output raw JSON only — no markdown fences, no extra text."
+                "Apply the cross-modal reasoning steps in your system prompt. "
+                "Produce the single raw JSON object described. "
+                "No markdown fences. No extra text before or after the JSON."
             )
         )
     )
 
-    # -----------------------------------------------------------------------
-    # API call — google-genai 2.x style
-    # -----------------------------------------------------------------------
+    # ── API call ─────────────────────────────────────────────────────────────
     try:
         response = client.models.generate_content(
             model=GEMMA_MODEL,
             contents=parts,
             config=types.GenerateContentConfig(
                 system_instruction=_SYSTEM_PROMPT,
-                temperature=0.2,
+                temperature=0.1,       # lower temp for more deterministic evidence grounding
                 max_output_tokens=8192,
             ),
         )
     except Exception as exc:
         raise RuntimeError(f"Gemini API call failed: {exc}") from exc
 
-    # -----------------------------------------------------------------------
-    # Parse and validate
-    # -----------------------------------------------------------------------
+    # ── Extract non-thought parts ─────────────────────────────────────────────
     raw_text = ""
     if response.candidates:
         candidate = response.candidates[0]
         if candidate.content and candidate.content.parts:
-            # Gemma 4 returns chain-of-thought parts with thought=True.
-            # Only the non-thought parts contain the actual answer.
             raw_text = "".join(
                 p.text
                 for p in candidate.content.parts
@@ -221,7 +331,6 @@ def synthesize_procedure(
             )
 
     if not raw_text:
-        # Fallback: try .text shortcut — returns None if only thought parts exist
         try:
             raw_text = response.text or ""
         except Exception:
@@ -235,6 +344,7 @@ def synthesize_procedure(
 
     raw_text = _strip_code_fences(raw_text)
 
+    # ── Parse JSON ────────────────────────────────────────────────────────────
     try:
         data = json.loads(raw_text)
     except json.JSONDecodeError as exc:
@@ -244,6 +354,7 @@ def synthesize_procedure(
             f"Raw output (first 600 chars):\n{raw_text[:600]}"
         ) from exc
 
+    # ── Pydantic validation ───────────────────────────────────────────────────
     try:
         procedure = Procedure.model_validate(data)
     except ValidationError as exc:
